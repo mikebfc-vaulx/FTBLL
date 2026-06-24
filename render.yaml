@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: ftball-friends
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOBBY_TTL_MS
+        value: "10800000"
