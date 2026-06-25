@@ -128,9 +128,9 @@ const starPlayerChance = 0.2;
 const starOverallMultiplier = 1.15;
 const starRepartoBonus = 0.03;
 
-function applyStarPlayerChance(player) {
+function applyStarPlayerTrait(player, isStarPlayer) {
   const baseOverall = player.baseOverall || player.overall;
-  if (Math.random() >= starPlayerChance) return { ...player, baseOverall, starPlayer: false };
+  if (!isStarPlayer) return { ...player, baseOverall, starPlayer: false };
   return {
     ...player,
     baseOverall,
@@ -138,6 +138,18 @@ function applyStarPlayerChance(player) {
     starPlayer: true,
     starBonus: starRepartoBonus
   };
+}
+
+function applyStarPlayersToPool(pool) {
+  const maxNonConsecutive = Math.ceil(pool.length / 2);
+  const starCount = Math.min(maxNonConsecutive, Math.max(pool.length >= 8 ? 1 : 0, Math.round(pool.length * starPlayerChance)));
+  const starIndexes = new Set();
+  shuffle([...pool.keys()]).forEach((index) => {
+    if (starIndexes.size >= starCount) return;
+    if (starIndexes.has(index - 1) || starIndexes.has(index + 1)) return;
+    starIndexes.add(index);
+  });
+  return pool.map((player, index) => applyStarPlayerTrait(player, starIndexes.has(index)));
 }
 
 function repartoForRole(role) {
@@ -193,7 +205,7 @@ function buildBalancedAuctionPool(sourcePlayers, rounds, formations = []) {
       selectedNames.add(player.name);
     }
   });
-  return shuffle(selected).map(applyStarPlayerChance);
+  return applyStarPlayersToPool(shuffle(selected));
 }
 
 function code() {

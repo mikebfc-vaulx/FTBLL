@@ -128,9 +128,9 @@ const starPlayerChance = 0.2;
 const starOverallMultiplier = 1.15;
 const starRepartoBonus = 0.03;
 
-function applyStarPlayerChance(player) {
+function applyStarPlayerTrait(player, isStarPlayer) {
   const baseOverall = player.baseOverall || player.overall;
-  if (Math.random() >= starPlayerChance) return { ...player, baseOverall, starPlayer: false };
+  if (!isStarPlayer) return { ...player, baseOverall, starPlayer: false };
   return {
     ...player,
     baseOverall,
@@ -138,6 +138,18 @@ function applyStarPlayerChance(player) {
     starPlayer: true,
     starBonus: starRepartoBonus
   };
+}
+
+function applyStarPlayersToPool(pool) {
+  const maxNonConsecutive = Math.ceil(pool.length / 2);
+  const starCount = Math.min(maxNonConsecutive, Math.max(pool.length >= 8 ? 1 : 0, Math.round(pool.length * starPlayerChance)));
+  const starIndexes = new Set();
+  shuffle([...pool.keys()]).forEach((index) => {
+    if (starIndexes.size >= starCount) return;
+    if (starIndexes.has(index - 1) || starIndexes.has(index + 1)) return;
+    starIndexes.add(index);
+  });
+  return pool.map((player, index) => applyStarPlayerTrait(player, starIndexes.has(index)));
 }
 
 function repartoForRole(role) {
@@ -193,7 +205,7 @@ function buildBalancedAuctionPool(sourcePlayers, rounds, formations = []) {
       selectedNames.add(player.name);
     }
   });
-  return shuffle(selected).map(applyStarPlayerChance);
+  return applyStarPlayersToPool(shuffle(selected));
 }
 
 function currentPlayer() {
@@ -1032,7 +1044,7 @@ function renderSquadBuilder() {
       return `
         <div class="pitch-slot ${statusClass} ${player?.starPlayer ? "star-card" : ""} ${player && state.selectedLineupPlayerId === player.uid ? "selected-player" : ""}" data-slot-id="${slot.id}" ${player ? `draggable="true" data-player-id="${player.uid}"` : ""} style="left:${slot.x}%; top:${slot.y}%;">
           <strong>${slot.role}</strong>
-          <span class="${player?.starPlayer ? "star-player-name" : ""}">${player?.starPlayer ? "STAR " : ""}${name}</span>
+          <span class="${player?.starPlayer ? "star-player-name" : ""}">${player?.starPlayer ? "★ " : ""}${name}</span>
           <small>${source} - OVR ${effective}${player?.starPlayer ? " - bonus reparto +3%" : ""}${player && player.role !== slot.role ? " fuori ruolo" : ""}</small>
         </div>
       `;
@@ -1045,7 +1057,7 @@ function renderSquadBuilder() {
           (player) => `
             <div class="bench-item ${player.starPlayer ? "star-card" : ""} ${state.selectedLineupPlayerId === player.uid ? "selected-player" : ""}" draggable="true" data-player-id="${player.uid}">
               <strong>${player.role}</strong>
-              <span class="${player.starPlayer ? "star-player-name" : ""}">${player.starPlayer ? "STAR " : ""}${player.name}<small>${player.generated ? "Auto" : "Asta"} - OVR ${player.overall}${player.starPlayer ? " - bonus +3%" : ""}</small></span>
+              <span class="${player.starPlayer ? "star-player-name" : ""}">${player.starPlayer ? "★ " : ""}${player.name}<small>${player.generated ? "Auto" : "Asta"} - OVR ${player.overall}${player.starPlayer ? " - bonus +3%" : ""}</small></span>
             </div>
           `
         )
@@ -1193,7 +1205,7 @@ function renderAuction() {
   $("timerLabel").textContent = String(displaySeconds(state.timeLeft));
   $("timerLabel").classList.toggle("hot", state.timeLeft < 3.5);
   $("playerRole").textContent = player.role;
-  $("playerName").textContent = player.starPlayer ? `STAR ${player.name}` : player.name;
+  $("playerName").textContent = player.starPlayer ? `★ ${player.name}` : player.name;
   $("playerName").classList.toggle("star-player-name", Boolean(player.starPlayer));
   $("playerNation").textContent = player.nation;
   $("playerAge").textContent = player.starPlayer ? `${player.age} anni - bonus reparto +3%` : `${player.age} anni`;
@@ -1263,7 +1275,7 @@ function renderMiniFormation() {
       const owned = slot.player;
       const previewed = player && index === previewIndex;
       const className = owned ? "owned" : previewed ? "preview-good" : "empty";
-      const label = owned ? owned.name : previewed ? player.name : "Vuoto";
+      const label = owned ? `${owned.starPlayer ? "★ " : ""}${owned.name}` : previewed ? `${player.starPlayer ? "★ " : ""}${player.name}` : "Vuoto";
       const overall = owned ? owned.overall : previewed ? player.overall : "--";
       return `
         <div class="mini-slot ${className}" style="left:${slot.x}%; top:${slot.y}%;">
@@ -1291,7 +1303,7 @@ function renderSquad() {
           (player) => `
           <div class="squad-item ${player.starPlayer ? "star-card" : ""}">
             <strong>${player.role}</strong>
-            <span class="${player.starPlayer ? "star-player-name" : ""}">${player.starPlayer ? "STAR " : ""}${player.name}<br><small>${player.price} cr - ${player.nation}${player.starPlayer ? " - bonus reparto +3%" : ""}</small></span>
+            <span class="${player.starPlayer ? "star-player-name" : ""}">${player.starPlayer ? "★ " : ""}${player.name}<br><small>${player.price} cr - ${player.nation}${player.starPlayer ? " - bonus reparto +3%" : ""}</small></span>
             <strong>${player.overall}</strong>
           </div>
         `
