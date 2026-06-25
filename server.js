@@ -665,7 +665,11 @@ async function handleApi(req, res, parts, url) {
   const playerId = body.playerId;
   if (req.method === "POST" && parts[3] === "start") {
     if (playerId !== lobby.hostId) return json(res, 403, { error: "Solo host" });
-    if (!lobby.managers.every((manager) => manager.ready)) return json(res, 400, { error: "Tutti devono essere pronti" });
+    removeInactivePlayers(lobby);
+    const humanManagers = lobby.managers.filter((manager) => !manager.isBot);
+    if (humanManagers.length < 2 && (lobby.settings.botCount || 0) <= 0) return json(res, 400, { error: "Serve almeno un amico o un bot" });
+    const notReady = humanManagers.filter((manager) => !manager.ready);
+    if (notReady.length) return json(res, 400, { error: `Non pronti: ${notReady.map((manager) => manager.name).join(", ")}` });
     lobby.managers.forEach((manager) => {
       manager.ready = false;
       manager.squad = [];
@@ -698,10 +702,13 @@ async function handleApi(req, res, parts, url) {
   if (req.method === "POST" && parts[3] === "profile") {
     const manager = lobby.managers.find((item) => item.id === playerId);
     if (!manager || lobby.status !== "lobby") return json(res, 400, { error: "Manager non valido" });
-    if (colors.includes(body.color)) manager.color = body.color;
-    if (formationNeeds[body.formation]) manager.formation = body.formation;
-    lobby.pool = buildBalancedAuctionPool(players, lobby.settings.rounds, lobby.managers.filter((item) => !item.isBot).map((item) => item.formation || lobby.settings.formation));
-    manager.ready = false;
+    const colorTaken = lobby.managers.some((item) => item.id !== manager.id && item.color === body.color);
+    if (colors.includes(body.color) && !colorTaken) manager.color = body.color;
+    if (formationNeeds[body.formation] && body.formation !== manager.formation) {
+      manager.formation = body.formation;
+      lobby.pool = buildBalancedAuctionPool(players, lobby.settings.rounds, lobby.managers.filter((item) => !item.isBot).map((item) => item.formation || lobby.settings.formation));
+      manager.ready = false;
+    }
     return json(res, 200, publicLobby(lobby, playerId));
   }
   if (req.method === "POST" && parts[3] === "lobby-ready") {

@@ -358,6 +358,29 @@ input {
   margin: 22px 0;
 }
 
+.lobby-player-card {
+  border-left: 7px solid var(--team-color);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--team-color) 14%, transparent), transparent 65%),
+    #fbfdf9;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--team-color) 22%, transparent), 0 8px 18px rgba(20, 45, 24, 0.05);
+}
+
+.lobby-player-card .rival-card-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: color-mix(in srgb, var(--team-color) 62%, #132018);
+}
+
+.player-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--team-color);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px color-mix(in srgb, var(--team-color) 48%, transparent);
+}
+
 .rival-card-head,
 .rival-metrics {
   display: flex;
