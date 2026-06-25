@@ -619,10 +619,10 @@ function applyMultiplayerSnapshot(snapshot) {
         showResults();
         return;
       }
-      if (state.view === "live") {
+      if (state.view === "live" && state.simulation === snapshot.results) {
         return;
       }
-      if (snapshot.results.rounds?.length && state.view !== "results") {
+      if (snapshot.results.rounds?.length) {
         startLiveSimulation(snapshot.results);
         return;
       }
@@ -865,6 +865,12 @@ async function multiplayerReady() {
 async function multiplayerStartSimulation() {
   try {
     const snapshot = await api(`/api/lobbies/${state.multiplayer.code}/simulate`, { playerId: state.multiplayer.playerId });
+    if (snapshot.results?.rounds?.length) {
+      stopMultiplayerPolling();
+      state.managers = snapshot.results.standings.map((manager) => ({ ...manager, isUser: manager.id === state.multiplayer.playerId }));
+      startLiveSimulation(snapshot.results);
+      return;
+    }
     applyMultiplayerSnapshot(snapshot);
   } catch (error) {
     $("lineupSummary").textContent = error.message;
@@ -1391,32 +1397,52 @@ function addLog(message) {
 function teamStrength(manager) {
   const lineup = buildLineup(manager);
   const starters = lineup.starters.filter((slot) => slot.player);
-  if (!starters.length) return { attack: 50, defense: 50, base: 50 };
+  if (!starters.length) return { attack: 50, midfield: 50, defense: 50, keeper: 50, base: 50 };
   const repartoBonuses = { attack: 0, midfield: 0, defense: 0 };
   starters.forEach((slot) => {
     if (slot.player.starPlayer) repartoBonuses[repartoForRole(slot.role)] += slot.player.starBonus || starRepartoBonus;
   });
-  const avg =
-    starters.reduce((total, slot) => {
-      const reparto = repartoForRole(slot.role);
-      return total + effectiveOverall(slot.player, slot.role) * (1 + repartoBonuses[reparto]);
-    }, 0) / starters.length;
+  const ratedSlots = starters.map((slot) => {
+    const reparto = repartoForRole(slot.role);
+    return { ...slot, effective: effectiveOverall(slot.player, slot.role) * (1 + repartoBonuses[reparto]) };
+  });
+  const values = ratedSlots.map((slot) => slot.effective);
+  const avg = values.reduce((total, value) => total + value, 0) / starters.length;
+  const bestBench = lineup.bench.slice(0, 7);
+  const depth = bestBench.length ? bestBench.reduce((total, player) => total + player.overall, 0) / bestBench.length : avg;
+  const attackingRoles = ["ATT", "AS", "AD", "COC"];
+  const attackSlots = ratedSlots.filter((slot) => attackingRoles.includes(slot.role));
+  const midfieldSlots = ratedSlots.filter((slot) => ["MED", "CC", "COC"].includes(slot.role));
+  const defenseSlots = ratedSlots.filter((slot) => ["DC", "TS", "TD"].includes(slot.role));
+  const keeperSlot = ratedSlots.find((slot) => slot.role === "POR");
+  const averageOr = (items, fallback) => (items.length ? items.reduce((sum, item) => sum + item.effective, 0) / items.length : fallback);
+  const attackLine = averageOr(attackSlots, avg);
+  const midfieldLine = averageOr(midfieldSlots, avg);
+  const defenseLine = averageOr(defenseSlots, avg);
+  const keeper = keeperSlot?.effective || defenseLine;
+  const individualPeak = Math.max(...attackSlots.map((slot) => slot.effective), avg);
   const coverage = formationCoverage(starters.map((slot) => slot.player));
-  const base = avg * (0.86 + coverage * 0.14);
+  const base = (avg * 0.76 + depth * 0.09 + individualPeak * 0.15) * (0.86 + coverage * 0.14);
   const tactic = tacticProfiles[manager.tactic || state.config.tactic] || tacticProfiles.balanced;
   return {
-    attack: base * tactic.attack,
-    defense: base * tactic.defense,
+    attack: (attackLine * 0.62 + midfieldLine * 0.23 + individualPeak * 0.15) * tactic.attack,
+    midfield: midfieldLine,
+    defense: (defenseLine * 0.62 + keeper * 0.25 + midfieldLine * 0.13) * tactic.defense,
+    keeper,
     base
   };
 }
 
-function weightedPick(players, type) {
-  const weighted = players.map((player) => {
-    const roleWeight = roleWeights[player.role]?.[type] || 0.4;
+function weightedPick(slots, type) {
+  const weighted = slots.map((slot) => {
+    const player = slot.player || slot;
+    const role = slot.role || player.role;
+    const effective = slot.player ? effectiveOverall(player, role) : player.overall;
+    const roleWeight = roleWeights[role]?.[type] || 0.4;
+    const ratingFactor = Math.max(0.25, Math.pow(effective / 82, type === "goals" ? 3.1 : 2.4));
     return {
       player,
-      weight: Math.max(0.05, roleWeight * (player.overall / 75))
+      weight: Math.max(0.02, roleWeight * ratingFactor)
     };
   });
   const total = weighted.reduce((sum, item) => sum + item.weight, 0);
@@ -1429,12 +1455,12 @@ function weightedPick(players, type) {
 }
 
 function assignGoal(manager) {
-  const starters = buildLineup(manager).starters.map((slot) => slot.player).filter(Boolean);
+  const starters = buildLineup(manager).starters.filter((slot) => slot.player && slot.role !== "POR");
   if (!starters.length) return;
   const scorer = weightedPick(starters, "goals");
   scorer.stats.goals += 1;
   const minute = 1 + Math.floor(Math.random() * 90);
-  const assistPool = starters.filter((player) => player !== scorer && player.role !== "POR");
+  const assistPool = starters.filter((slot) => slot.player !== scorer && slot.role !== "POR");
   if (assistPool.length && Math.random() < 0.78) {
     weightedPick(assistPool, "assists").stats.assists += 1;
   }
@@ -1447,10 +1473,12 @@ function playMatch(home, away) {
   const homeTactic = tacticProfiles[home.tactic || state.config.tactic] || tacticProfiles.balanced;
   const awayTactic = tacticProfiles[away.tactic || "balanced"] || tacticProfiles.balanced;
   const homeEdge = 0.25;
-  const homeExpected = Math.max(0.15, 1.15 + (homeStrength.attack - awayStrength.defense) / 18 + homeEdge);
-  const awayExpected = Math.max(0.15, 1.05 + (awayStrength.attack - homeStrength.defense) / 18);
-  const homeGoals = sampleGoals(homeExpected);
-  const awayGoals = sampleGoals(awayExpected);
+  const homeGap = homeStrength.attack - awayStrength.defense + (homeStrength.midfield - awayStrength.midfield) * 0.16;
+  const awayGap = awayStrength.attack - homeStrength.defense + (awayStrength.midfield - homeStrength.midfield) * 0.16;
+  const homeExpected = clampExpectedGoals(1.05 + homeGap / 38 + homeEdge);
+  const awayExpected = clampExpectedGoals(0.92 + awayGap / 38);
+  const homeGoals = sampleGoals(homeExpected, homeGap);
+  const awayGoals = sampleGoals(awayExpected, awayGap);
 
   const events = [];
   for (let i = 0; i < homeGoals; i += 1) events.push(assignGoal(home));
@@ -1471,14 +1499,23 @@ function playMatch(home, away) {
   };
 }
 
-function sampleGoals(expected) {
+function clampExpectedGoals(value) {
+  return Math.min(2.65, Math.max(0.25, value));
+}
+
+function sampleGoals(expected, strengthGap = 0) {
+  const limit = strengthGap > 22 ? 5 : strengthGap > 12 ? 4 : 3;
+  const lambda = Math.min(expected, limit === 3 ? 2.05 : 2.45);
   let goals = 0;
-  const chances = 5;
-  const chanceRate = Math.min(0.82, expected / chances);
-  for (let i = 0; i < chances; i += 1) {
-    if (Math.random() < chanceRate) goals += 1;
+  let probability = Math.exp(-lambda);
+  let cumulative = probability;
+  const roll = Math.random();
+  while (roll > cumulative && goals < limit) {
+    goals += 1;
+    probability *= lambda / goals;
+    cumulative += probability;
   }
-  return Math.min(7, goals);
+  return goals;
 }
 
 function updateTeamStats(manager, gf, ga) {
@@ -1651,7 +1688,7 @@ function renderFinalCalendar() {
 function renderPlayerStats() {
   const playersWithStats = state.managers
     .flatMap((manager) => manager.squad.map((player) => ({ ...player, team: manager.name })))
-    .filter((player) => player.stats && (player.stats.goals > 0 || player.stats.assists > 0 || player.stats.apps > 0))
+    .filter((player) => player.stats && (player.stats.goals > 0 || player.stats.assists > 0))
     .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists || b.overall - a.overall)
     .slice(0, 10);
 
@@ -1662,7 +1699,6 @@ function renderPlayerStats() {
           <span>${index + 1}. ${player.name}<small>${player.team} - ${player.role} - OVR ${player.overall}</small></span>
           <strong>${player.stats.goals} G</strong>
           <strong>${player.stats.assists} A</strong>
-          <span>${player.stats.apps} pres.</span>
         </div>
       `
     )
