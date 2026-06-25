@@ -124,7 +124,7 @@ function shuffle(items) {
   return [...items].sort(() => Math.random() - 0.5);
 }
 
-const starPlayerChance = 0.1;
+const starPlayerChance = 0.2;
 const starOverallMultiplier = 1.15;
 const starRepartoBonus = 0.03;
 
@@ -148,6 +148,7 @@ function repartoForRole(role) {
 
 function buildBalancedAuctionPool(sourcePlayers, rounds, formations = []) {
   const target = Math.min(rounds, sourcePlayers.length);
+  const guidedTarget = Math.max(0, Math.min(target, Math.round(target * 0.7)));
   const selected = [];
   const selectedNames = new Set();
   const validFormations = formations.filter((formation) => formationNeeds[formation]);
@@ -162,14 +163,15 @@ function buildBalancedAuctionPool(sourcePlayers, rounds, formations = []) {
 
   const demandTotal = Object.values(roleDemand).reduce((sum, count) => sum + count, 0);
   const roleTargets = Object.fromEntries(
-    Object.entries(roleDemand).map(([role, count]) => [role, Math.max(1, Math.round((count / demandTotal) * target))])
+    Object.entries(roleDemand).map(([role, count]) => [role, Math.max(0, Math.round((count / demandTotal) * guidedTarget))])
   );
 
-  while (Object.values(roleTargets).reduce((sum, count) => sum + count, 0) > target) {
-    const role = Object.entries(roleTargets).sort((a, b) => b[1] - a[1])[0][0];
+  while (Object.values(roleTargets).reduce((sum, count) => sum + count, 0) > guidedTarget) {
+    const role = Object.entries(roleTargets).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!role) break;
     roleTargets[role] -= 1;
   }
-  while (Object.values(roleTargets).reduce((sum, count) => sum + count, 0) < target) {
+  while (Object.values(roleTargets).reduce((sum, count) => sum + count, 0) < guidedTarget) {
     const role = Object.entries(roleDemand).sort((a, b) => b[1] - a[1])[0][0];
     roleTargets[role] += 1;
   }
@@ -627,13 +629,13 @@ function renderLiveTable(standings) {
   $("liveTable").classList.add("compact-league-table", "live-league-table");
   $("liveTable").innerHTML = `
     <div class="league-header">
-      <span>#</span><span>Squadra</span><span>PG</span><span>PTS</span>
+      <span>#</span><span>Squadra</span><span>PG</span><span>GF</span><span>GS</span><span>PTS</span>
     </div>
     ${standings
       .map((manager, index) => {
         const isRealMultiplayer = state.mode === "multi" && !manager.isBot;
         const rowStyle = isRealMultiplayer ? `style="--team-color:${manager.color || "#1e8e4d"}"` : "";
-        return `<div class="league-row ${isRealMultiplayer ? "real-player-row" : ""}" ${rowStyle}><span>${index + 1}</span><strong>${manager.name}</strong><span>${manager.stats.played}</span><strong>${manager.stats.points}</strong></div>`;
+        return `<div class="league-row ${isRealMultiplayer ? "real-player-row" : ""}" ${rowStyle}><span>${index + 1}</span><strong>${manager.name}</strong><span>${manager.stats.played}</span><span>${manager.stats.gf}</span><span>${manager.stats.ga}</span><strong>${manager.stats.points}</strong></div>`;
       })
       .join("")}
   `;
@@ -1502,16 +1504,24 @@ function showResults() {
     </div>
   `;
   $("resultSummary").textContent = `Difficolta ${state.config.label}, modulo ${state.config.formation}. Calendario andata e ritorno contro ${state.managers.length - 1} rivali.`;
-  $("standingsList").classList.add("compact-league-table");
+  $("standingsList").classList.remove("compact-league-table");
   $("standingsList").innerHTML = `
     <div class="league-header">
       <span>#</span>
       <span>Squadra</span>
       <span>PG</span>
+      <span>V</span>
+      <span>N</span>
+      <span>P</span>
+      <span>GF</span>
+      <span>GS</span>
+      <span>DR</span>
       <span>PTS</span>
     </div>
     ${ranking
       .map((manager, index) => {
+        const goalDifference = manager.stats.gf - manager.stats.ga;
+        const differenceLabel = goalDifference > 0 ? `+${goalDifference}` : goalDifference;
         const isRealMultiplayer = state.mode === "multi" && !manager.isBot;
         const rowStyle = isRealMultiplayer ? `style="--team-color:${manager.color || "#1e8e4d"}"` : "";
         return `
@@ -1519,6 +1529,12 @@ function showResults() {
           <span>${index + 1}</span>
           <strong>${manager.name}</strong>
           <span>${manager.stats.played}</span>
+          <span>${manager.stats.won}</span>
+          <span>${manager.stats.drawn}</span>
+          <span>${manager.stats.lost}</span>
+          <span>${manager.stats.gf}</span>
+          <span>${manager.stats.ga}</span>
+          <span>${differenceLabel}</span>
           <strong>${manager.stats.points}</strong>
         </div>
       `;

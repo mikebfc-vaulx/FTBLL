@@ -835,7 +835,9 @@ input {
 }
 
 .lineup-layout {
-  grid-template-columns: minmax(620px, 1fr) 330px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
   align-items: start;
 }
 
@@ -970,9 +972,9 @@ input {
 
 .squad-stats-box {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin: 16px 0;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 0;
 }
 
 .squad-stat {
@@ -987,13 +989,18 @@ input {
 }
 
 .bench-panel {
-  align-self: start;
-  position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 32px);
+  align-self: stretch;
+  position: static;
+  max-height: none;
   overflow: hidden;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 16px;
+  align-items: start;
+}
+
+.bench-panel h2 {
+  margin: 0;
 }
 
 .bench-list,
@@ -1004,9 +1011,14 @@ input {
 }
 
 .bench-list {
-  min-height: 220px;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  min-height: 92px;
+  max-height: 190px;
   overflow: auto;
   padding-right: 4px;
+  margin-top: 0;
 }
 
 .bench-item,
@@ -1021,7 +1033,13 @@ input {
 }
 
 .bench-item {
-  grid-template-columns: 42px 1fr;
+  grid-template-columns: 36px 1fr;
+  padding: 8px;
+  font-size: 0.86rem;
+}
+
+.bench-item strong {
+  text-align: center;
 }
 
 .bench-item small,
@@ -1086,8 +1104,8 @@ input {
 
 .compact-league-table .league-header,
 .compact-league-table .league-row {
-  grid-template-columns: 40px minmax(130px, 1fr) 54px 64px;
-  min-width: 0;
+  grid-template-columns: 40px minmax(130px, 1fr) repeat(3, 48px) 64px;
+  min-width: 440px;
 }
 
 .league-row.user-row {
@@ -1189,7 +1207,7 @@ input {
   }
 
   .bench-list {
-    max-height: 420px;
+    max-height: 260px;
   }
 
   .squad-toolbar {
@@ -1199,6 +1217,19 @@ input {
 
   .tactic-control {
     margin-left: 0;
+  }
+
+  .squad-stats-box {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+
+  .bench-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .bench-list {
+    grid-column: auto;
+    grid-row: auto;
   }
 }
 

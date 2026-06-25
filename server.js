@@ -124,7 +124,7 @@ function shuffle(items) {
   return [...items].sort(() => Math.random() - 0.5);
 }
 
-const starPlayerChance = 0.1;
+const starPlayerChance = 0.2;
 const starOverallMultiplier = 1.15;
 const starRepartoBonus = 0.03;
 
@@ -148,6 +148,7 @@ function repartoForRole(role) {
 
 function buildBalancedAuctionPool(sourcePlayers, rounds, formations = []) {
   const target = Math.min(rounds, sourcePlayers.length);
+  const guidedTarget = Math.max(0, Math.min(target, Math.round(target * 0.7)));
   const selected = [];
   const selectedNames = new Set();
   const validFormations = formations.filter((formation) => formationNeeds[formation]);
@@ -162,14 +163,15 @@ function buildBalancedAuctionPool(sourcePlayers, rounds, formations = []) {
 
   const demandTotal = Object.values(roleDemand).reduce((sum, count) => sum + count, 0);
   const roleTargets = Object.fromEntries(
-    Object.entries(roleDemand).map(([role, count]) => [role, Math.max(1, Math.round((count / demandTotal) * target))])
+    Object.entries(roleDemand).map(([role, count]) => [role, Math.max(0, Math.round((count / demandTotal) * guidedTarget))])
   );
 
-  while (Object.values(roleTargets).reduce((sum, count) => sum + count, 0) > target) {
-    const role = Object.entries(roleTargets).sort((a, b) => b[1] - a[1])[0][0];
+  while (Object.values(roleTargets).reduce((sum, count) => sum + count, 0) > guidedTarget) {
+    const role = Object.entries(roleTargets).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!role) break;
     roleTargets[role] -= 1;
   }
-  while (Object.values(roleTargets).reduce((sum, count) => sum + count, 0) < target) {
+  while (Object.values(roleTargets).reduce((sum, count) => sum + count, 0) < guidedTarget) {
     const role = Object.entries(roleDemand).sort((a, b) => b[1] - a[1])[0][0];
     roleTargets[role] += 1;
   }
