@@ -6,6 +6,7 @@ const players = require("./players");
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 const LOBBY_TTL_MS = Number(process.env.LOBBY_TTL_MS || 1000 * 60 * 60 * 3);
+const FINISHED_LOBBY_TTL_MS = Number(process.env.FINISHED_LOBBY_TTL_MS || 1000 * 60 * 2);
 const CLEANUP_INTERVAL_MS = Number(process.env.CLEANUP_INTERVAL_MS || 1000 * 60 * 10);
 const AUCTION_COUNTDOWN_MS = Number(process.env.AUCTION_COUNTDOWN_MS || 10000);
 const AUCTION_DURATION_MS = Number(process.env.AUCTION_DURATION_MS || 10000);
@@ -86,7 +87,12 @@ function touchLobby(lobby) {
 
 function cleanupLobbies() {
   const cutoff = now() - LOBBY_TTL_MS;
+  const finishedCutoff = now() - FINISHED_LOBBY_TTL_MS;
   for (const [code, lobby] of lobbies.entries()) {
+    if (lobby.status === "results" && (lobby.finishedAt || lobby.updatedAt || lobby.createdAt || 0) < finishedCutoff) {
+      lobbies.delete(code);
+      continue;
+    }
     if ((lobby.updatedAt || lobby.createdAt || 0) < cutoff) {
       lobbies.delete(code);
     }
@@ -248,11 +254,15 @@ function emptyPlayerStats() {
 }
 
 function publicLobby(lobby, playerId) {
-  touchLobby(lobby);
+  if (lobby.status !== "results") touchLobby(lobby);
   markSeen(lobby, playerId);
   removeInactivePlayers(lobby);
   updateAuction(lobby);
-  return {
+  if (lobby.status === "results" && playerId) {
+    if (!Array.isArray(lobby.resultSeenBy)) lobby.resultSeenBy = [];
+    if (!lobby.resultSeenBy.includes(playerId)) lobby.resultSeenBy.push(playerId);
+  }
+  const snapshot = {
     code: lobby.code,
     status: lobby.status,
     settings: lobby.settings,
@@ -264,6 +274,12 @@ function publicLobby(lobby, playerId) {
     log: lobby.log.slice(-30).reverse(),
     results: lobby.results
   };
+  if (lobby.status === "results") {
+    const humanIds = lobby.managers.filter((manager) => !manager.isBot).map((manager) => manager.id);
+    const deliveredToAll = humanIds.every((id) => lobby.resultSeenBy?.includes(id));
+    if (deliveredToAll) lobbies.delete(lobby.code);
+  }
+  return snapshot;
 }
 
 function markSeen(lobby, playerId) {
@@ -283,6 +299,7 @@ function removeInactivePlayers(lobby) {
 
 function startAuction(lobby) {
   lobby.status = "countdown";
+  lobby.finishedAt = null;
   lobby.auction.index = 0;
   lobby.auction.currentBid = 0;
   lobby.auction.leaderId = null;
@@ -451,6 +468,8 @@ function simulate(lobby) {
     .slice(0, 10);
   lobby.results = { standings, playerStats, rounds, skipResolved: false };
   lobby.status = "results";
+  lobby.finishedAt = now();
+  lobby.resultSeenBy = [];
   lobby.log.push("Campionato simulato. Risultati disponibili.");
 }
 
@@ -651,6 +670,8 @@ async function handleApi(req, res, parts, url) {
       auction: { index: 0, currentBid: 0, leaderId: null, endsAt: 0 },
       log: [],
       results: null,
+      finishedAt: null,
+      resultSeenBy: [],
       skipVotes: [],
       createdAt: now(),
       updatedAt: now()
@@ -661,7 +682,7 @@ async function handleApi(req, res, parts, url) {
 
   const lobby = lobbies.get(parts[2]);
   if (!lobby) return json(res, 404, { error: "Lobby non trovata" });
-  touchLobby(lobby);
+  if (lobby.status !== "results") touchLobby(lobby);
 
   if (req.method === "POST" && parts[3] === "join") {
     if (lobby.status !== "lobby") return json(res, 400, { error: "Asta gia iniziata" });

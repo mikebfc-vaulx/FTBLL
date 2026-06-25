@@ -441,6 +441,23 @@ function clearMatchState() {
   $("currentLeader").textContent = "Nessuna offerta";
 }
 
+function clearMultiplayerSession() {
+  clearMatchState();
+  state.config = null;
+  state.managers = [];
+  state.mode = "multi";
+  state.multiplayer.code = null;
+  state.multiplayer.playerId = null;
+  state.multiplayer.hostId = null;
+  state.multiplayer.isHost = false;
+  state.lobbySettingsDirty = false;
+  state.lobbySettingsSaving = false;
+  state.pendingTactic = null;
+  state.lobbyUsedColors = [];
+  $("lobbyPlayersList").innerHTML = "";
+  $("liveMatchFeed").innerHTML = "";
+}
+
 function startSinglePlayer() {
   stopMultiplayerPolling();
   clearMatchState();
@@ -484,8 +501,7 @@ function setMultiplayerStatus(message) {
 async function createMultiplayerLobby() {
   try {
     stopMultiplayerPolling();
-    clearMatchState();
-    state.mode = "multi";
+    clearMultiplayerSession();
     const payload = {
       name: $("hostNameInput").value
     };
@@ -504,8 +520,7 @@ async function createMultiplayerLobby() {
 async function joinMultiplayerLobby() {
   try {
     stopMultiplayerPolling();
-    clearMatchState();
-    state.mode = "multi";
+    clearMultiplayerSession();
     const code = $("joinCodeInput").value.trim().toUpperCase();
     const result = await api(`/api/lobbies/${code}/join`, { name: $("joinNameInput").value });
     state.multiplayer.code = result.code;
@@ -584,6 +599,7 @@ function applyMultiplayerSnapshot(snapshot) {
     renderSquadBuilder();
   } else if (snapshot.status === "results") {
     if (snapshot.results) {
+      stopMultiplayerPolling();
       state.managers = snapshot.results.standings.map((manager) => ({ ...manager, isUser: manager.id === state.multiplayer.playerId }));
       if (snapshot.results.skipResolved) {
         state.simulation = snapshot.results;
@@ -1601,13 +1617,14 @@ function renderPlayerStats() {
 }
 
 function resetGame() {
-  clearInterval(state.tickId);
   stopMultiplayerPolling();
+  clearMatchState();
   state.running = false;
   state.simulation = null;
   state.mode = "single";
   state.multiplayer.code = null;
   state.multiplayer.playerId = null;
+  state.multiplayer.hostId = null;
   state.multiplayer.isHost = false;
   state.lobbySettingsDirty = false;
   state.lobbySettingsSaving = false;
