@@ -650,16 +650,16 @@ function renderNextLiveRound() {
     return;
   }
   $("liveRoundTitle").textContent = `Giornata ${round.round}`;
-  const html = round.matches
-    .map(
-      (match) => `
-        <div class="live-match-card">
-          <strong>${match.home} ${match.homeGoals}-${match.awayGoals} ${match.away}</strong>
-          ${(match.events || []).length ? (match.events || []).map((event) => `<span>${event}</span>`).join("") : "<small>Nessun gol</small>"}
-        </div>
-      `
-    )
-    .join("");
+  const html = `
+    <div class="live-match-card live-round-card">
+      <strong>Giornata ${round.round}</strong>
+      <div class="live-round-results">
+        ${round.matches
+          .map((match) => `<span>${match.home} <strong>${match.homeGoals}-${match.awayGoals}</strong> ${match.away}</span>`)
+          .join("")}
+      </div>
+    </div>
+  `;
   $("liveMatchFeed").insertAdjacentHTML("afterbegin", html);
   renderLiveTable(round.standings || []);
   state.liveSimulation.roundIndex += 1;
@@ -669,13 +669,13 @@ function renderLiveTable(standings) {
   $("liveTable").classList.add("compact-league-table", "live-league-table");
   $("liveTable").innerHTML = `
     <div class="league-header">
-      <span>#</span><span>Squadra</span><span>PG</span><span>GF</span><span>GS</span><span>PTS</span>
+      <span>#</span><span>Squadra</span><span>PG</span><span>PTS</span>
     </div>
     ${standings
       .map((manager, index) => {
         const isRealMultiplayer = state.mode === "multi" && !manager.isBot;
         const rowStyle = isRealMultiplayer ? `style="--team-color:${manager.color || "#1e8e4d"}"` : "";
-        return `<div class="league-row ${isRealMultiplayer ? "real-player-row" : ""}" ${rowStyle}><span>${index + 1}</span><strong>${manager.name}</strong><span>${manager.stats.played}</span><span>${manager.stats.gf}</span><span>${manager.stats.ga}</span><strong>${manager.stats.points}</strong></div>`;
+        return `<div class="league-row ${isRealMultiplayer ? "real-player-row" : ""}" ${rowStyle}><span>${index + 1}</span><strong>${manager.name}</strong><span>${manager.stats.played}</span><strong>${manager.stats.points}</strong></div>`;
       })
       .join("")}
   `;
