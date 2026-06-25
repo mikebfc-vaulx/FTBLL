@@ -1,836 +1,139 @@
-﻿const http = require("http");
-const fs = require("fs");
-const path = require("path");
-const players = require("./players");
+﻿const playerDatabase = (() => {
+  const basePlayers = [
+    { name: "Kylian Mbappe", role: "ATT", nation: "Francia", age: 27, overall: 94 },
+    { name: "Erling Haaland", role: "ATT", nation: "Norvegia", age: 25, overall: 93 },
+    { name: "Jude Bellingham", role: "COC", nation: "Inghilterra", age: 23, overall: 91 },
+    { name: "Vinicius Junior", role: "AS", nation: "Brasile", age: 25, overall: 91 },
+    { name: "Rodri", role: "MED", nation: "Spagna", age: 30, overall: 90 },
+    { name: "Kevin De Bruyne", role: "CC", nation: "Belgio", age: 35, overall: 89 },
+    { name: "Lautaro Martinez", role: "ATT", nation: "Argentina", age: 28, overall: 89 },
+    { name: "Bukayo Saka", role: "AD", nation: "Inghilterra", age: 24, overall: 88 },
+    { name: "Federico Valverde", role: "CC", nation: "Uruguay", age: 27, overall: 88 },
+    { name: "Ruben Dias", role: "DC", nation: "Portogallo", age: 29, overall: 88 },
+    { name: "Gianluigi Donnarumma", role: "POR", nation: "Italia", age: 27, overall: 87 },
+    { name: "Alessandro Bastoni", role: "DC", nation: "Italia", age: 27, overall: 86 },
+    { name: "Achraf Hakimi", role: "TD", nation: "Marocco", age: 27, overall: 86 },
+    { name: "Theo Hernandez", role: "TS", nation: "Francia", age: 28, overall: 86 },
+    { name: "Florian Wirtz", role: "COC", nation: "Germania", age: 23, overall: 86 },
+    { name: "Victor Osimhen", role: "ATT", nation: "Nigeria", age: 27, overall: 86 },
+    { name: "Rafael Leao", role: "AS", nation: "Portogallo", age: 27, overall: 85 },
+    { name: "Nicolo Barella", role: "CC", nation: "Italia", age: 29, overall: 85 },
+    { name: "Mike Maignan", role: "POR", nation: "Francia", age: 30, overall: 85 },
+    { name: "Declan Rice", role: "MED", nation: "Inghilterra", age: 27, overall: 85 },
+    { name: "William Saliba", role: "DC", nation: "Francia", age: 25, overall: 85 },
+    { name: "Khvicha Kvaratskhelia", role: "AS", nation: "Georgia", age: 25, overall: 84 },
+    { name: "Jamal Musiala", role: "COC", nation: "Germania", age: 23, overall: 84 },
+    { name: "Trent Alexander-Arnold", role: "TD", nation: "Inghilterra", age: 27, overall: 84 },
+    { name: "Pedri", role: "CC", nation: "Spagna", age: 23, overall: 84 },
+    { name: "Dusan Vlahovic", role: "ATT", nation: "Serbia", age: 26, overall: 83 },
+    { name: "Frenkie de Jong", role: "CC", nation: "Paesi Bassi", age: 29, overall: 83 },
+    { name: "Luis Diaz", role: "AS", nation: "Colombia", age: 29, overall: 83 },
+    { name: "Joao Cancelo", role: "TD", nation: "Portogallo", age: 32, overall: 83 },
+    { name: "Kim Min-jae", role: "DC", nation: "Corea del Sud", age: 29, overall: 83 },
+    { name: "Sergej Milinkovic-Savic", role: "CC", nation: "Serbia", age: 31, overall: 82 },
+    { name: "Sandro Tonali", role: "MED", nation: "Italia", age: 26, overall: 82 },
+    { name: "Gabriel Martinelli", role: "AS", nation: "Brasile", age: 25, overall: 82 },
+    { name: "Diogo Jota", role: "ATT", nation: "Portogallo", age: 29, overall: 82 },
+    { name: "Ousmane Diomande", role: "DC", nation: "Costa d'Avorio", age: 22, overall: 80 },
+    { name: "Giorgio Scalvini", role: "DC", nation: "Italia", age: 22, overall: 80 },
+    { name: "Takefusa Kubo", role: "AD", nation: "Giappone", age: 25, overall: 80 },
+    { name: "Benjamin Sesko", role: "ATT", nation: "Slovenia", age: 23, overall: 79 },
+    { name: "Destiny Udogie", role: "TS", nation: "Italia", age: 23, overall: 79 },
+    { name: "Manuel Ugarte", role: "MED", nation: "Uruguay", age: 25, overall: 79 },
+    { name: "Ivan Provedel", role: "POR", nation: "Italia", age: 32, overall: 78 },
+    { name: "Riccardo Orsolini", role: "AD", nation: "Italia", age: 29, overall: 78 },
+    { name: "Evan Ferguson", role: "ATT", nation: "Irlanda", age: 21, overall: 77 },
+    { name: "Morten Hjulmand", role: "MED", nation: "Danimarca", age: 27, overall: 77 },
+    { name: "Piero Hincapie", role: "DC", nation: "Ecuador", age: 24, overall: 77 },
+    { name: "Milos Kerkez", role: "TS", nation: "Ungheria", age: 22, overall: 76 },
+    { name: "Yunus Musah", role: "CC", nation: "Stati Uniti", age: 23, overall: 76 },
+    { name: "Johan Bakayoko", role: "AD", nation: "Belgio", age: 23, overall: 76 }
+  ];
 
-const PORT = process.env.PORT || 3000;
-const ROOT = __dirname;
-const LOBBY_TTL_MS = Number(process.env.LOBBY_TTL_MS || 1000 * 60 * 60 * 3);
-const FINISHED_LOBBY_TTL_MS = Number(process.env.FINISHED_LOBBY_TTL_MS || 1000 * 60 * 2);
-const CLEANUP_INTERVAL_MS = Number(process.env.CLEANUP_INTERVAL_MS || 1000 * 60 * 10);
-const AUCTION_COUNTDOWN_MS = Number(process.env.AUCTION_COUNTDOWN_MS || 10000);
-const AUCTION_DURATION_MS = Number(process.env.AUCTION_DURATION_MS || 10000);
-const AUCTION_EXTEND_MS = Number(process.env.AUCTION_EXTEND_MS || 5000);
-const botDifficultyRanges = {
-  easy: [68, 76],
-  normal: [72, 82],
-  hard: [78, 88]
-};
-const tacticProfiles = {
-  balanced: { attack: 1, defense: 1, shots: 1, cards: 1, penaltyMiss: 1 },
-  pressing: { attack: 1.08, defense: 0.96, shots: 1.12, cards: 1.35, penaltyMiss: 1.02 },
-  counter: { attack: 1.04, defense: 1.06, shots: 0.9, cards: 0.95, penaltyMiss: 0.95 },
-  possession: { attack: 1.02, defense: 1.08, shots: 1.04, cards: 0.82, penaltyMiss: 0.9 },
-  direct: { attack: 1.1, defense: 0.93, shots: 1.18, cards: 1.08, penaltyMiss: 1.1 },
-  wide: { attack: 1.06, defense: 0.98, shots: 1.1, cards: 0.96, penaltyMiss: 1 },
-  lowblock: { attack: 0.9, defense: 1.16, shots: 0.78, cards: 1.05, penaltyMiss: 0.92 }
-};
-const formationNeeds = {
-  "4-3-3": ["POR", "DC", "DC", "TS", "TD", "MED", "CC", "CC", "AS", "AD", "ATT"],
-  "4-4-2": ["POR", "DC", "DC", "TS", "TD", "CC", "CC", "AS", "AD", "ATT", "ATT"],
-  "3-5-2": ["POR", "DC", "DC", "DC", "MED", "CC", "CC", "AS", "AD", "ATT", "ATT"],
-  "4-2-3-1": ["POR", "DC", "DC", "TS", "TD", "MED", "MED", "AS", "COC", "AD", "ATT"],
-  "3-4-3": ["POR", "DC", "DC", "DC", "CC", "CC", "AS", "AD", "AS", "AD", "ATT"]
-};
+  const realPlayerRows = [
+    "Alisson Becker|POR|Brasile|33|89", "Thibaut Courtois|POR|Belgio|34|89", "Jan Oblak|POR|Slovenia|33|88", "Marc-Andre ter Stegen|POR|Germania|34|88", "Ederson|POR|Brasile|32|88",
+    "Manuel Neuer|POR|Germania|40|87", "Yann Sommer|POR|Svizzera|37|86", "Gregor Kobel|POR|Svizzera|28|86", "Emiliano Martinez|POR|Argentina|33|86", "Unai Simon|POR|Spagna|29|84",
+    "David Raya|POR|Spagna|30|84", "Wojciech Szczesny|POR|Polonia|36|84", "Jordan Pickford|POR|Inghilterra|32|83", "Aaron Ramsdale|POR|Inghilterra|28|81", "Andre Onana|POR|Camerun|30|82",
+    "Guglielmo Vicario|POR|Italia|29|82", "Alex Meret|POR|Italia|29|81", "Diogo Costa|POR|Portogallo|26|84", "Giorgi Mamardashvili|POR|Georgia|25|82", "Andriy Lunin|POR|Ucraina|27|80",
+    "Anatoliy Trubin|POR|Ucraina|24|80", "Brice Samba|POR|Francia|32|81", "Dominik Livakovic|POR|Croazia|31|80", "Koen Casteels|POR|Belgio|34|80", "Keylor Navas|POR|Costa Rica|39|80",
+    "Rui Patricio|POR|Portogallo|38|78", "Fernando Muslera|POR|Uruguay|40|78", "Guillermo Ochoa|POR|Messico|41|77", "Stefan Ortega|POR|Germania|33|79", "Kepa Arrizabalaga|POR|Spagna|31|80",
+    "Alex Remiro|POR|Spagna|31|81", "Marco Carnesecchi|POR|Italia|26|79", "Wladimiro Falcone|POR|Italia|31|77", "Lukasz Skorupski|POR|Polonia|35|78", "Matz Sels|POR|Belgio|34|78",
+    "Bart Verbruggen|POR|Paesi Bassi|23|78", "Gavin Bazunu|POR|Irlanda|24|75", "Illan Meslier|POR|Francia|26|76", "Dean Henderson|POR|Inghilterra|29|79", "Nick Pope|POR|Inghilterra|34|82",
+    "Alphonse Areola|POR|Francia|33|80", "Neto|POR|Brasile|36|79", "Jose Sa|POR|Portogallo|33|80", "Yassine Bounou|POR|Marocco|35|84", "Geronimo Rulli|POR|Argentina|34|80",
+    "Virgil van Dijk|DC|Paesi Bassi|34|89", "Ronald Araujo|DC|Uruguay|27|86", "Eder Militao|DC|Brasile|28|86", "Marquinhos|DC|Brasile|32|86", "Gabriel Magalhaes|DC|Brasile|28|86",
+    "Ibrahima Konate|DC|Francia|27|84", "Dayot Upamecano|DC|Francia|27|84", "Matthijs de Ligt|DC|Paesi Bassi|26|84", "Josko Gvardiol|DC|Croazia|24|85", "John Stones|DC|Inghilterra|32|84",
+    "Manuel Akanji|DC|Svizzera|30|83", "Aymeric Laporte|DC|Spagna|32|84", "David Alaba|DC|Austria|34|85", "Antonio Rudiger|DC|Germania|33|86", "Mats Hummels|DC|Germania|37|83",
+    "Nico Schlotterbeck|DC|Germania|26|83", "Jonathan Tah|DC|Germania|30|83", "Jules Kounde|DC|Francia|27|85", "Pau Torres|DC|Spagna|29|82", "Sven Botman|DC|Paesi Bassi|26|82",
+    "Marc Guehi|DC|Inghilterra|25|81", "Levi Colwill|DC|Inghilterra|23|80", "Fikayo Tomori|DC|Inghilterra|28|82", "Bremer|DC|Brasile|29|85", "Milan Skriniar|DC|Slovacchia|31|84",
+    "Stefan de Vrij|DC|Paesi Bassi|34|82", "Francesco Acerbi|DC|Italia|38|82", "Gianluca Mancini|DC|Italia|30|81", "Alessandro Buongiorno|DC|Italia|27|81", "Federico Gatti|DC|Italia|28|79",
+    "Pierre Kalulu|DC|Francia|26|79", "Jean-Clair Todibo|DC|Francia|26|81", "Leny Yoro|DC|Francia|20|78", "Axel Disasi|DC|Francia|28|80", "Benoit Badiashile|DC|Francia|25|79",
+    "Cristian Romero|DC|Argentina|28|84", "Lisandro Martinez|DC|Argentina|28|83", "Nicolas Otamendi|DC|Argentina|38|81", "Facundo Medina|DC|Argentina|27|80", "Marcos Senesi|DC|Argentina|29|79",
+    "Illya Zabarnyi|DC|Ucraina|23|80", "Kevin Danso|DC|Austria|27|80", "David Hancko|DC|Slovacchia|28|81", "Mario Hermoso|DC|Spagna|31|80", "Jose Maria Gimenez|DC|Uruguay|31|83",
+    "Goncalo Inacio|DC|Portogallo|24|82", "Antonio Silva|DC|Portogallo|22|80", "Morato|DC|Brasile|25|78", "Nino|DC|Brasile|29|78", "Murillo|DC|Brasile|23|80",
+    "Maxence Lacroix|DC|Francia|26|78", "Oumar Solet|DC|Francia|26|78", "Evan Ndicka|DC|Costa d'Avorio|26|80", "Edmond Tapsoba|DC|Burkina Faso|27|82", "Odilon Kossounou|DC|Costa d'Avorio|25|79",
+    "Mohamed Simakan|DC|Francia|26|80", "Danilo|DC|Brasile|34|81", "Thiago Silva|DC|Brasile|41|80", "Nathan Ake|DC|Paesi Bassi|31|83", "Trevoh Chalobah|DC|Inghilterra|26|78",
+    "Alphonso Davies|TS|Canada|25|85", "Nuno Mendes|TS|Portogallo|24|84", "Alejandro Balde|TS|Spagna|22|81", "Andrew Robertson|TS|Scozia|32|84", "Alex Grimaldo|TS|Spagna|30|84",
+    "Federico Dimarco|TS|Italia|28|84", "Leonardo Spinazzola|TS|Italia|33|79", "Andrea Cambiaso|TS|Italia|26|80", "Marc Cucurella|TS|Spagna|27|80", "Ben Chilwell|TS|Inghilterra|29|81",
+    "Luke Shaw|TS|Inghilterra|30|82", "Pervis Estupinan|TS|Ecuador|28|80", "Nicolas Tagliafico|TS|Argentina|33|80", "Ferland Mendy|TS|Francia|31|82", "Miguel Gutierrez|TS|Spagna|24|79",
+    "Fran Garcia|TS|Spagna|26|78", "Raphael Guerreiro|TS|Portogallo|32|82", "David Raum|TS|Germania|28|80", "Maximilian Mittelstadt|TS|Germania|29|79", "Filip Kostic|TS|Serbia|33|81",
+    "Kostas Tsimikas|TS|Grecia|30|79", "Oleksandr Zinchenko|TS|Ucraina|29|81", "Vitalii Mykolenko|TS|Ucraina|27|78", "Lucas Digne|TS|Francia|32|80", "Sergio Reguilon|TS|Spagna|29|77",
+    "Borna Sosa|TS|Croazia|28|78", "Rayan Ait-Nouri|TS|Algeria|25|79", "Theo Corbeanu|AS|Canada|24|70", "Liberato Cacace|TS|Nuova Zelanda|25|73", "Aaron Hickey|TS|Scozia|24|78",
+    "Dani Carvajal|TD|Spagna|34|85", "Reece James|TD|Inghilterra|26|84", "Kyle Walker|TD|Inghilterra|36|84", "Ben White|TD|Inghilterra|28|82", "Pedro Porro|TD|Spagna|26|82",
+    "Denzel Dumfries|TD|Paesi Bassi|30|82", "Jeremie Frimpong|TD|Paesi Bassi|25|84", "Nahuel Molina|TD|Argentina|28|82", "Aaron Wan-Bissaka|TD|Inghilterra|28|80", "Diogo Dalot|TD|Portogallo|27|81",
+    "Noussair Mazraoui|TD|Marocco|28|81", "Benjamin Pavard|TD|Francia|30|83", "Jonathan Clauss|TD|Francia|33|80", "Malo Gusto|TD|Francia|23|79", "Vanderson|TD|Brasile|25|79",
+    "Yan Couto|TD|Brasile|24|79", "Emerson Royal|TD|Brasile|27|78", "Davide Calabria|TD|Italia|29|79", "Giovanni Di Lorenzo|TD|Italia|32|82", "Matteo Darmian|TD|Italia|36|79",
+    "Michael Kayode|TD|Italia|22|75", "Tino Livramento|TD|Inghilterra|23|78", "Kieran Trippier|TD|Inghilterra|35|82", "Vladimir Coufal|TD|Repubblica Ceca|33|78", "Dodo|TD|Brasile|27|79",
+    "Gonzalo Montiel|TD|Argentina|29|78", "Ivan Fresneda|TD|Spagna|21|75", "Matty Cash|TD|Polonia|28|79", "Kevin Mbabu|TD|Svizzera|31|76", "Sergino Dest|TD|Stati Uniti|25|78",
+    "Aurelien Tchouameni|MED|Francia|26|85", "Eduardo Camavinga|CC|Francia|23|84", "Luka Modric|CC|Croazia|40|86", "Ilkay Gundogan|CC|Germania|35|85", "Joshua Kimmich|MED|Germania|31|86",
+    "Leon Goretzka|CC|Germania|31|83", "Joao Palhinha|MED|Portogallo|30|83", "Martin Zubimendi|MED|Spagna|27|83", "Mikel Merino|CC|Spagna|29|83", "Bruno Fernandes|COC|Portogallo|31|87",
+    "Bernardo Silva|CC|Portogallo|31|88", "Vitinha|CC|Portogallo|26|85", "Joao Neves|MED|Portogallo|21|82", "Ruben Neves|MED|Portogallo|29|82", "Enzo Fernandez|CC|Argentina|25|83",
+    "Alexis Mac Allister|CC|Argentina|27|84", "Moises Caicedo|MED|Ecuador|24|82", "Dominik Szoboszlai|COC|Ungheria|25|82", "Ryan Gravenberch|CC|Paesi Bassi|24|81", "Martin Odegaard|COC|Norvegia|27|87",
+    "Hakan Calhanoglu|MED|Turchia|32|85", "Henrikh Mkhitaryan|CC|Armenia|37|82", "Teun Koopmeiners|CC|Paesi Bassi|28|83", "Tijjani Reijnders|CC|Paesi Bassi|27|81", "Ruben Loftus-Cheek|CC|Inghilterra|30|79",
+    "Youssouf Fofana|MED|Francia|27|81", "Khephren Thuram|CC|Francia|25|80", "Adrien Rabiot|CC|Francia|31|83", "Manuel Locatelli|MED|Italia|28|81", "Weston McKennie|CC|Stati Uniti|27|79",
+    "Piotr Zielinski|CC|Polonia|32|82", "Stanislav Lobotka|MED|Slovacchia|31|83", "Andre-Frank Zambo Anguissa|CC|Camerun|30|82", "Yves Bissouma|MED|Mali|29|80", "Rodrigo Bentancur|CC|Uruguay|28|81",
+    "Pierre-Emile Hojbjerg|MED|Danimarca|30|80", "Christian Eriksen|CC|Danimarca|34|80", "Kobbie Mainoo|CC|Inghilterra|21|78", "Casemiro|MED|Brasile|34|84", "Bruno Guimaraes|CC|Brasile|28|84",
+    "Joelinton|CC|Brasile|29|80", "Lucas Paqueta|COC|Brasile|28|82", "James Ward-Prowse|CC|Inghilterra|31|80", "Conor Gallagher|CC|Inghilterra|26|81", "Cole Palmer|COC|Inghilterra|24|85",
+    "Phil Foden|COC|Inghilterra|26|87", "James Maddison|COC|Inghilterra|29|82", "Eberechi Eze|COC|Inghilterra|28|82", "Michael Olise|AD|Francia|24|83", "Xavi Simons|COC|Paesi Bassi|23|83",
+    "Dani Olmo|COC|Spagna|28|84", "Antoine Griezmann|COC|Francia|35|87", "Paulo Dybala|COC|Argentina|32|84", "Isco|COC|Spagna|34|82", "Nabil Fekir|COC|Francia|32|81",
+    "Rayan Cherki|COC|Francia|22|79", "Julian Brandt|COC|Germania|30|83", "Kai Havertz|COC|Germania|27|83", "Mason Mount|COC|Inghilterra|27|80", "Rodrigo De Paul|CC|Argentina|32|82",
+    "Leandro Paredes|MED|Argentina|31|80", "Thiago Almada|COC|Argentina|25|80", "Giovani Lo Celso|CC|Argentina|30|80", "Luis Alberto|COC|Spagna|33|82", "Lorenzo Pellegrini|COC|Italia|30|82",
+    "Davide Frattesi|CC|Italia|26|81", "Lazar Samardzic|CC|Serbia|24|79", "Georgiy Sudakov|COC|Ucraina|23|79", "Orkun Kokcu|CC|Turchia|25|81", "Marcel Sabitzer|CC|Austria|32|81",
+    "Konrad Laimer|MED|Austria|29|80", "Youri Tielemans|CC|Belgio|29|81", "Amadou Onana|MED|Belgio|24|81", "Sofyan Amrabat|MED|Marocco|29|79", "Azzedine Ounahi|CC|Marocco|26|78",
+    "Mohamed Salah|AD|Egitto|34|89", "Lionel Messi|AD|Argentina|39|88", "Cristiano Ronaldo|ATT|Portogallo|41|86", "Neymar|AS|Brasile|34|87", "Harry Kane|ATT|Inghilterra|32|90",
+    "Robert Lewandowski|ATT|Polonia|37|88", "Heung-min Son|AS|Corea del Sud|33|87", "Leroy Sane|AD|Germania|30|85", "Serge Gnabry|AD|Germania|31|83", "Kingsley Coman|AS|Francia|30|84",
+    "Ousmane Dembele|AD|Francia|29|86", "Raphinha|AD|Brasile|29|84", "Ferran Torres|AD|Spagna|26|82", "Lamine Yamal|AD|Spagna|18|84", "Nico Williams|AS|Spagna|23|84",
+    "Inaki Williams|AD|Ghana|31|82", "Rodrygo|AD|Brasile|25|86", "Endrick|ATT|Brasile|20|78", "Richarlison|ATT|Brasile|29|81", "Gabriel Jesus|ATT|Brasile|29|83",
+    "Leandro Trossard|AS|Belgio|31|82", "Ollie Watkins|ATT|Inghilterra|30|84", "Dominic Solanke|ATT|Inghilterra|28|81", "Alexander Isak|ATT|Svezia|26|85", "Callum Wilson|ATT|Inghilterra|34|80",
+    "Anthony Gordon|AS|Inghilterra|25|82", "Marcus Rashford|AS|Inghilterra|28|82", "Alejandro Garnacho|AS|Argentina|21|79", "Rasmus Hojlund|ATT|Danimarca|23|80", "Antony|AD|Brasile|26|78",
+    "Darwin Nunez|ATT|Uruguay|27|83", "Cody Gakpo|AS|Paesi Bassi|27|83", "Federico Chiesa|AD|Italia|28|82", "Kenan Yildiz|AS|Turchia|21|78", "Matteo Politano|AD|Italia|32|81",
+    "Mattia Zaccagni|AS|Italia|31|81", "Domenico Berardi|AD|Italia|32|82", "Ademola Lookman|AS|Nigeria|28|82", "Gianluca Scamacca|ATT|Italia|27|81", "Mateo Retegui|ATT|Italia|27|80",
+    "Marcus Thuram|ATT|Francia|28|84", "Romelu Lukaku|ATT|Belgio|33|82", "Edin Dzeko|ATT|Bosnia ed Erzegovina|40|80", "Mehdi Taremi|ATT|Iran|33|81", "Christian Pulisic|AD|Stati Uniti|27|82",
+    "Noah Okafor|AS|Svizzera|26|79", "Alvaro Morata|ATT|Spagna|33|82", "Joao Felix|COC|Portogallo|26|82", "Angel Correa|ATT|Argentina|31|81", "Memphis Depay|ATT|Paesi Bassi|32|81",
+    "Artem Dovbyk|ATT|Ucraina|29|83", "Viktor Tsygankov|AD|Ucraina|28|81", "Alexander Sorloth|ATT|Norvegia|30|82", "Mikel Oyarzabal|AS|Spagna|29|82", "Gerard Moreno|ATT|Spagna|34|81",
+    "Iago Aspas|ATT|Spagna|38|81", "Joselu|ATT|Spagna|36|80", "Brahim Diaz|COC|Marocco|26|82", "Savinho|AD|Brasile|22|80", "Jeremy Doku|AS|Belgio|24|82",
+    "Jack Grealish|AS|Inghilterra|30|83", "Julian Alvarez|ATT|Argentina|26|85", "Karim Adeyemi|AS|Germania|24|81", "Donyell Malen|AD|Paesi Bassi|27|82", "Serhou Guirassy|ATT|Guinea|30|83",
+    "Deniz Undav|ATT|Germania|30|81", "Victor Boniface|ATT|Nigeria|25|83", "Lois Openda|ATT|Belgio|26|84", "Maximilian Beier|ATT|Germania|23|79", "Randal Kolo Muani|ATT|Francia|27|82",
+    "Goncalo Ramos|ATT|Portogallo|25|82", "Bradley Barcola|AS|Francia|23|81", "Desire Doue|AS|Francia|20|78", "Marco Asensio|AD|Spagna|30|81", "Mohammed Kudus|AD|Ghana|25|82",
+    "Jarrod Bowen|AD|Inghilterra|29|83", "Kaoru Mitoma|AS|Giappone|29|82", "Viktor Gyokeres|ATT|Svezia|28|85", "Pedro Goncalves|AS|Portogallo|28|82", "Francisco Trincao|AD|Portogallo|26|80",
+    "Angel Di Maria|AD|Argentina|38|82", "Rafa Silva|AS|Portogallo|33|81", "Evanilson|ATT|Brasile|26|80", "Pepe|AD|Brasile|29|80", "Galeno|AS|Brasile|28|81",
+    "Ivan Toney|ATT|Inghilterra|30|82", "Hugo Ekitike|ATT|Francia|24|79", "Jonathan David|ATT|Canada|26|84", "David Neres|AD|Brasile|29|80", "Malcom|AD|Brasile|29|81",
+    "Karim Benzema|ATT|Francia|38|86", "Roberto Firmino|ATT|Brasile|34|80", "Sadio Mane|AS|Senegal|34|84", "Riyad Mahrez|AD|Algeria|35|84", "Aleksandar Mitrovic|ATT|Serbia|31|82",
+    "Pierre-Emerick Aubameyang|ATT|Gabon|36|81", "Alexandre Lacazette|ATT|Francia|35|81", "Wissam Ben Yedder|ATT|Francia|35|80", "Amine Gouiri|AS|Algeria|26|80", "Brian Brobbey|ATT|Paesi Bassi|24|79"
+  ];
 
-const roleWeights = {
-  POR: { goals: 0.02, assists: 0.02 },
-  DC: { goals: 0.2, assists: 0.12 },
-  TS: { goals: 0.18, assists: 0.38 },
-  TD: { goals: 0.18, assists: 0.38 },
-  MED: { goals: 0.42, assists: 0.55 },
-  CC: { goals: 0.62, assists: 0.68 },
-  COC: { goals: 0.92, assists: 1.02 },
-  AS: { goals: 1.05, assists: 0.88 },
-  AD: { goals: 1.05, assists: 0.88 },
-  ATT: { goals: 1.35, assists: 0.46 }
-};
-
-const generatedNames = {
-  first: ["Alex", "Marco", "Leo", "Samir", "Diego", "Nico", "Lucas", "Enzo", "Ivan", "Noah", "Milo", "Toni"],
-  last: ["Rossi", "Costa", "Ferreira", "Marin", "Silva", "Moretti", "Kovac", "Ramos", "Greco", "Conti", "Bianchi", "Santos"]
-};
-
-const lobbies = new Map();
-const PLAYER_INACTIVE_MS = Number(process.env.PLAYER_INACTIVE_MS || 1000 * 25);
-const colors = ["#1e8e4d", "#2f80ed", "#d64545", "#f2a900", "#9b51e0", "#00a6a6", "#f26b38", "#5b6ee1"];
-const botTeamNames = [
-  "Bot City",
-  "Virtual United",
-  "Pixel Rovers",
-  "AFC Algorithm",
-  "Real Random",
-  "Sporting Script",
-  "Dynamic Eleven",
-  "Synthetic FC",
-  "Code Rangers",
-  "Node Athletic",
-  "Render Town",
-  "Draft County",
-  "Loop Wanderers",
-  "Array Albion",
-  "Binary Boca",
-  "Cloud Dynamo",
-  "Stack United",
-  "Quantum Kickers",
-  "Prompt FC",
-  "Lambda Lions"
-];
-
-function now() {
-  return Date.now();
-}
-
-function touchLobby(lobby) {
-  lobby.updatedAt = now();
-}
-
-function cleanupLobbies() {
-  const cutoff = now() - LOBBY_TTL_MS;
-  const finishedCutoff = now() - FINISHED_LOBBY_TTL_MS;
-  for (const [code, lobby] of lobbies.entries()) {
-    if (lobby.status === "results" && (lobby.finishedAt || lobby.updatedAt || lobby.createdAt || 0) < finishedCutoff) {
-      lobbies.delete(code);
-      continue;
-    }
-    if ((lobby.updatedAt || lobby.createdAt || 0) < cutoff) {
-      lobbies.delete(code);
-    }
-  }
-}
-
-function json(res, status, payload) {
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(payload));
-}
-
-function readBody(req) {
-  return new Promise((resolve) => {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk;
-    });
-    req.on("end", () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch {
-        resolve({});
-      }
-    });
+  const used = new Set(basePlayers.map((player) => player.name));
+  const players = [...basePlayers];
+  realPlayerRows.forEach((row) => {
+    const [name, role, nation, age, overall] = row.split("|");
+    if (used.has(name)) return;
+    used.add(name);
+    players.push({ name, role, nation, age: Number(age), overall: Number(overall) });
   });
+  return players;
+})();
+
+if (typeof module !== "undefined") {
+  module.exports = playerDatabase;
 }
-
-function clamp(value, min, max) {
-  const parsed = Number(value);
-  if (Number.isNaN(parsed)) return min;
-  return Math.min(max, Math.max(min, parsed));
-}
-
-function shuffle(items) {
-  return [...items].sort(() => Math.random() - 0.5);
-}
-
-const starPlayerChance = 0.2;
-const starOverallMultiplier = 1.15;
-const starRepartoBonus = 0.03;
-
-function applyStarPlayerTrait(player, isStarPlayer) {
-  const baseOverall = player.baseOverall || player.overall;
-  if (!isStarPlayer) return { ...player, baseOverall, starPlayer: false };
-  return {
-    ...player,
-    baseOverall,
-    overall: Math.min(100, Math.round(baseOverall * starOverallMultiplier)),
-    starPlayer: true,
-    starBonus: starRepartoBonus
-  };
-}
-
-function applyStarPlayersToPool(pool) {
-  const maxNonConsecutive = Math.ceil(pool.length / 2);
-  const starCount = Math.min(maxNonConsecutive, Math.max(pool.length >= 8 ? 1 : 0, Math.round(pool.length * starPlayerChance)));
-  const starIndexes = new Set();
-  shuffle([...pool.keys()]).forEach((index) => {
-    if (starIndexes.size >= starCount) return;
-    if (starIndexes.has(index - 1) || starIndexes.has(index + 1)) return;
-    starIndexes.add(index);
-  });
-  return pool.map((player, index) => applyStarPlayerTrait(player, starIndexes.has(index)));
-}
-
-function repartoForRole(role) {
-  if (["POR", "DC", "TS", "TD"].includes(role)) return "defense";
-  if (["MED", "CC", "COC"].includes(role)) return "midfield";
-  return "attack";
-}
-
-function buildBalancedAuctionPool(sourcePlayers, rounds, formations = []) {
-  const target = Math.min(rounds, sourcePlayers.length);
-  const guidedTarget = Math.max(0, Math.min(target, Math.round(target * 0.7)));
-  const selected = [];
-  const selectedNames = new Set();
-  const validFormations = formations.filter((formation) => formationNeeds[formation]);
-  const roleDemand = {};
-  const demandRoles = validFormations.length
-    ? validFormations.flatMap((formation) => formationNeeds[formation])
-    : formationNeeds["4-3-3"];
-
-  demandRoles.forEach((role) => {
-    roleDemand[role] = (roleDemand[role] || 0) + 1;
-  });
-
-  const demandTotal = Object.values(roleDemand).reduce((sum, count) => sum + count, 0);
-  const roleTargets = Object.fromEntries(
-    Object.entries(roleDemand).map(([role, count]) => [role, Math.max(0, Math.round((count / demandTotal) * guidedTarget))])
-  );
-
-  while (Object.values(roleTargets).reduce((sum, count) => sum + count, 0) > guidedTarget) {
-    const role = Object.entries(roleTargets).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
-    if (!role) break;
-    roleTargets[role] -= 1;
-  }
-  while (Object.values(roleTargets).reduce((sum, count) => sum + count, 0) < guidedTarget) {
-    const role = Object.entries(roleDemand).sort((a, b) => b[1] - a[1])[0][0];
-    roleTargets[role] += 1;
-  }
-
-  Object.entries(roleTargets).forEach(([role, desired]) => {
-    const pool = shuffle(sourcePlayers.filter((player) => player.role === role));
-    while (pool.length && selected.filter((player) => player.role === role).length < desired) {
-      const player = pool.pop();
-      if (!selectedNames.has(player.name)) {
-        selected.push(player);
-        selectedNames.add(player.name);
-      }
-    }
-  });
-
-  shuffle(sourcePlayers).forEach((player) => {
-    if (selected.length < target && !selectedNames.has(player.name)) {
-      selected.push(player);
-      selectedNames.add(player.name);
-    }
-  });
-  return applyStarPlayersToPool(shuffle(selected));
-}
-
-function code() {
-  let value = "";
-  do {
-    value = Math.random().toString(36).slice(2, 8).toUpperCase();
-  } while (lobbies.has(value));
-  return value;
-}
-
-function nextColor(lobby) {
-  const used = new Set((lobby?.managers || []).map((manager) => manager.color));
-  return colors.find((color) => !used.has(color)) || colors[Math.floor(Math.random() * colors.length)];
-}
-
-function newPlayer(name, credits, formation, isHost = false, color = colors[0]) {
-  return {
-    id: Math.random().toString(36).slice(2, 12),
-    name: String(name || "Manager").slice(0, 18),
-    credits,
-    squad: [],
-    lineup: {},
-    formation,
-    tactic: "balanced",
-    ready: false,
-    isHost,
-    isBot: false,
-    color,
-    lastSeen: now(),
-    stats: emptyStats()
-  };
-}
-
-function emptyStats() {
-  return { played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 };
-}
-
-function emptyPlayerStats() {
-  return { apps: 0, goals: 0, assists: 0 };
-}
-
-function publicLobby(lobby, playerId) {
-  if (lobby.status !== "results") touchLobby(lobby);
-  markSeen(lobby, playerId);
-  removeInactivePlayers(lobby);
-  updateAuction(lobby);
-  if (lobby.status === "results" && playerId) {
-    if (!Array.isArray(lobby.resultSeenBy)) lobby.resultSeenBy = [];
-    if (!lobby.resultSeenBy.includes(playerId)) lobby.resultSeenBy.push(playerId);
-  }
-  const snapshot = {
-    code: lobby.code,
-    status: lobby.status,
-    settings: lobby.settings,
-    playerId,
-    hostId: lobby.hostId,
-    auction: lobby.auction,
-    currentPlayer: lobby.auction.index < lobby.pool.length ? lobby.pool[lobby.auction.index] : null,
-    managers: lobby.managers.map((manager) => ({ ...manager, isUser: manager.id === playerId })),
-    log: lobby.log.slice(-30).reverse(),
-    results: lobby.results
-  };
-  if (lobby.status === "results") {
-    const humanIds = lobby.managers.filter((manager) => !manager.isBot).map((manager) => manager.id);
-    const deliveredToAll = humanIds.every((id) => lobby.resultSeenBy?.includes(id));
-    if (deliveredToAll) lobbies.delete(lobby.code);
-  }
-  return snapshot;
-}
-
-function markSeen(lobby, playerId) {
-  const manager = lobby.managers.find((item) => item.id === playerId);
-  if (manager) manager.lastSeen = now();
-}
-
-function removeInactivePlayers(lobby) {
-  if (lobby.status !== "lobby") return;
-  const cutoff = now() - PLAYER_INACTIVE_MS;
-  const before = lobby.managers.length;
-  lobby.managers = lobby.managers.filter((manager) => manager.isHost || manager.lastSeen >= cutoff);
-  if (before !== lobby.managers.length) {
-    lobby.log.push("Un manager inattivo e stato rimosso dalla lobby");
-  }
-}
-
-function startAuction(lobby) {
-  lobby.status = "countdown";
-  lobby.finishedAt = null;
-  lobby.auction.index = 0;
-  lobby.auction.currentBid = 0;
-  lobby.auction.leaderId = null;
-  lobby.auction.countdownEndsAt = Date.now() + AUCTION_COUNTDOWN_MS;
-  lobby.auction.endsAt = 0;
-  lobby.log.push("Countdown asta avviato dall'host");
-}
-
-function updateAuction(lobby) {
-  if (lobby.status === "countdown" && Date.now() >= lobby.auction.countdownEndsAt) {
-    lobby.status = "auction";
-    lobby.auction.endsAt = Date.now() + AUCTION_DURATION_MS;
-    lobby.log.push("Asta iniziata");
-  }
-  if (lobby.status !== "auction") return;
-  while (lobby.status === "auction" && Date.now() >= lobby.auction.endsAt) {
-    closeAuction(lobby);
-  }
-}
-
-function closeAuction(lobby) {
-  const player = lobby.pool[lobby.auction.index];
-  if (!player) {
-    lobby.status = "squad";
-    lobby.log.push("Asta terminata. Preparare la rosa.");
-    return;
-  }
-
-  if (lobby.auction.leaderId) {
-    const winner = lobby.managers.find((manager) => manager.id === lobby.auction.leaderId);
-    if (winner) {
-      winner.credits -= lobby.auction.currentBid;
-      winner.squad.push({ ...player, uid: `p-${Math.random().toString(36).slice(2, 10)}`, price: lobby.auction.currentBid, generated: false, stats: emptyPlayerStats() });
-      lobby.log.push(`${player.name} venduto a ${winner.name} per ${lobby.auction.currentBid}`);
-    }
-  } else {
-    lobby.log.push(`${player.name} resta senza squadra`);
-  }
-
-  lobby.auction.index += 1;
-  lobby.auction.currentBid = 0;
-  lobby.auction.leaderId = null;
-
-  if (lobby.auction.index >= lobby.pool.length) {
-    lobby.status = "squad";
-    lobby.log.push("Asta terminata. Preparare la rosa.");
-  } else {
-    lobby.auction.endsAt = Date.now() + AUCTION_DURATION_MS;
-  }
-}
-
-function placeBid(lobby, playerId, increment) {
-  updateAuction(lobby);
-  if (lobby.status !== "auction") return false;
-  const manager = lobby.managers.find((item) => item.id === playerId);
-  const amount = lobby.auction.currentBid + clamp(increment, 1, 25);
-  if (!manager || lobby.auction.leaderId === playerId || amount > manager.credits) return false;
-  lobby.auction.currentBid = amount;
-  lobby.auction.leaderId = playerId;
-  if (lobby.auction.endsAt - Date.now() < AUCTION_EXTEND_MS) {
-    lobby.auction.endsAt = Date.now() + AUCTION_EXTEND_MS;
-  }
-  return true;
-}
-
-function buildLineup(manager, formation) {
-  if (manager.lineup && Object.keys(manager.lineup).length) {
-    const used = new Set(Object.values(manager.lineup));
-    return formationNeeds[formation].map((role, index) => {
-      const priorSameRole = formationNeeds[formation].slice(0, index).filter((slotRole) => slotRole === role).length;
-      const slotId = `${role}-${priorSameRole + 1}`;
-      const playerId = manager.lineup[slotId];
-      return manager.squad.find((player) => player.uid === playerId || player.name === playerId) || null;
-    });
-  }
-  const available = [...manager.squad].sort((a, b) => b.overall - a.overall);
-  return formationNeeds[formation].map((role) => {
-    const index = available.findIndex((player) => player.role === role);
-    if (index === -1) return null;
-    return available.splice(index, 1)[0];
-  });
-}
-
-function getLineupSlots(formation) {
-  return formationNeeds[formation].map((role, index) => {
-    const priorSameRole = formationNeeds[formation].slice(0, index).filter((slotRole) => slotRole === role).length;
-    return { id: `${role}-${priorSameRole + 1}`, role };
-  });
-}
-
-function fillVacancies(lobby, playerId) {
-  const manager = lobby.managers.find((item) => item.id === playerId);
-  if (!manager) return 0;
-  const formation = manager.formation || lobby.settings.formation;
-  if (!manager.lineup || !Object.keys(manager.lineup).length) {
-    const starters = buildLineup(manager, formation);
-    manager.lineup = {};
-    getLineupSlots(formation).forEach((slot, index) => {
-      const player = starters[index];
-      if (player) manager.lineup[slot.id] = player.uid || player.name;
-    });
-  }
-  const starters = buildLineup(manager, formation);
-  const slots = getLineupSlots(formation);
-  const missing = [];
-  starters.forEach((player, index) => {
-    if (!player) missing.push(slots[index]);
-  });
-  missing.forEach((slot) => {
-    const player = makeGenerated(slot.role);
-    manager.squad.push(player);
-    manager.lineup[slot.id] = player.uid;
-  });
-  manager.ready = false;
-  return missing.length;
-}
-
-function makeGenerated(role) {
-  const first = generatedNames.first[Math.floor(Math.random() * generatedNames.first.length)];
-  const last = generatedNames.last[Math.floor(Math.random() * generatedNames.last.length)];
-  return {
-    name: `${first} ${last}`,
-    role,
-    uid: `gen-${Math.random().toString(36).slice(2, 10)}`,
-    nation: "Academy",
-    age: 18 + Math.floor(Math.random() * 15),
-    overall: 60 + Math.floor(Math.random() * 16),
-    price: 0,
-    generated: true,
-    stats: emptyPlayerStats()
-  };
-}
-
-function markReady(lobby, playerId, tactic, lineup = null) {
-  const manager = lobby.managers.find((item) => item.id === playerId);
-  if (!manager) return;
-  fillVacancies(lobby, playerId);
-  manager.tactic = tactic || "balanced";
-  manager.lineup = lineup && typeof lineup === "object" ? lineup : manager.lineup || {};
-  manager.ready = true;
-}
-
-function simulate(lobby) {
-  addSimulationBots(lobby);
-  lobby.managers.forEach((manager) => {
-    manager.stats = emptyStats();
-    manager.squad.forEach((player) => {
-      player.stats = emptyPlayerStats();
-    });
-  });
-
-  const rounds = [];
-  buildCalendarRounds(lobby.managers).forEach((matches, index) => {
-    const playedMatches = matches.map(([home, away]) => playMatch(lobby, home, away));
-    rounds.push({ round: index + 1, matches: playedMatches, standings: tableSnapshot(lobby.managers) });
-  });
-
-  const standings = [...lobby.managers].sort((a, b) => {
-    const gdA = a.stats.gf - a.stats.ga;
-    const gdB = b.stats.gf - b.stats.ga;
-    return b.stats.points - a.stats.points || gdB - gdA || b.stats.gf - a.stats.gf;
-  });
-  const playerStats = lobby.managers
-    .flatMap((manager) => manager.squad.map((player) => ({ ...player, team: manager.name })))
-    .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists || b.overall - a.overall)
-    .slice(0, 10);
-  lobby.results = { standings, playerStats, rounds, skipResolved: false };
-  lobby.status = "results";
-  lobby.finishedAt = now();
-  lobby.resultSeenBy = [];
-  lobby.log.push("Campionato simulato. Risultati disponibili.");
-}
-
-function buildCalendarRounds(managers) {
-  const teams = [...managers];
-  if (teams.length % 2 === 1) teams.push(null);
-  const roundsPerLeg = teams.length - 1;
-  const half = teams.length / 2;
-  const firstLeg = [];
-  let rotation = [...teams];
-
-  for (let round = 0; round < roundsPerLeg; round += 1) {
-    const matches = [];
-    for (let i = 0; i < half; i += 1) {
-      const a = rotation[i];
-      const b = rotation[rotation.length - 1 - i];
-      if (a && b) {
-        matches.push(round % 2 === 0 ? [a, b] : [b, a]);
-      }
-    }
-    firstLeg.push(matches);
-    rotation = [rotation[0], rotation[rotation.length - 1], ...rotation.slice(1, rotation.length - 1)];
-  }
-
-  const secondLeg = firstLeg.map((matches) => matches.map(([home, away]) => [away, home]));
-  return [...firstLeg, ...secondLeg];
-}
-
-function addSimulationBots(lobby) {
-  if (lobby.botsAdded) return;
-  const botCount = clamp(lobby.settings.botCount || 0, 0, 20);
-  for (let i = 0; i < botCount; i += 1) {
-    const bot = newPlayer(botTeamNames[i] || `Bot ${i + 1}`, lobby.settings.credits, lobby.settings.formation, false, colors[i % colors.length]);
-    bot.id = `bot-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
-    bot.isBot = true;
-    bot.ready = true;
-    bot.squad = formationNeeds[lobby.settings.formation].map((role) => makeBotPlayer(role, lobby.settings.botDifficulty));
-    lobby.managers.push(bot);
-  }
-  lobby.botsAdded = true;
-}
-
-function makeBotPlayer(role, difficulty = "normal") {
-  const generated = makeGenerated(role);
-  const [min, max] = botDifficultyRanges[difficulty] || botDifficultyRanges.normal;
-  generated.overall = min + Math.floor(Math.random() * (max - min + 1));
-  generated.name = `Bot ${generated.name}`;
-  return generated;
-}
-
-function playMatch(lobby, home, away) {
-  const homeStrength = teamStrength(lobby, home);
-  const awayStrength = teamStrength(lobby, away);
-  const homeTactic = tacticProfiles[home.tactic] || tacticProfiles.balanced;
-  const awayTactic = tacticProfiles[away.tactic] || tacticProfiles.balanced;
-  const homeGoals = sampleGoals(Math.max(0.15, 1.25 + (homeStrength.attack - awayStrength.defense) / 18));
-  const awayGoals = sampleGoals(Math.max(0.15, 1.05 + (awayStrength.attack - homeStrength.defense) / 18));
-  const events = [];
-  for (let i = 0; i < homeGoals; i += 1) events.push(assignGoal(lobby, home, home.name));
-  for (let i = 0; i < awayGoals; i += 1) events.push(assignGoal(lobby, away, away.name));
-  updateStats(home, homeGoals, awayGoals);
-  updateStats(away, awayGoals, homeGoals);
-  return {
-    home: home.name,
-    away: away.name,
-    homeGoals,
-    awayGoals,
-    events: events.filter(Boolean).sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10)),
-    shots: {
-      home: Math.max(homeGoals + 2, sampleShots(homeStrength.attack, homeTactic)),
-      away: Math.max(awayGoals + 2, sampleShots(awayStrength.attack, awayTactic))
-    }
-  };
-}
-
-function teamStrength(lobby, manager) {
-  const roles = formationNeeds[manager.formation || lobby.settings.formation];
-  const lineup = buildLineup(manager, manager.formation || lobby.settings.formation);
-  const starters = lineup
-    .map((player, index) => ({ player, role: roles[index] }))
-    .filter((slot) => slot.player);
-  if (!starters.length) return { attack: 50, defense: 50, base: 50 };
-  const repartoBonuses = { attack: 0, midfield: 0, defense: 0 };
-  starters.forEach((slot) => {
-    if (slot.player.starPlayer) repartoBonuses[repartoForRole(slot.role)] += slot.player.starBonus || starRepartoBonus;
-  });
-  const avg =
-    starters.reduce((sum, slot) => {
-      const reparto = repartoForRole(slot.role);
-      return sum + effectiveOverall(slot.player, slot.role) * (1 + repartoBonuses[reparto]);
-    }, 0) / starters.length;
-  const tactic = tacticProfiles[manager.tactic] || tacticProfiles.balanced;
-  return {
-    attack: avg * tactic.attack,
-    defense: avg * tactic.defense,
-    base: avg
-  };
-}
-
-function effectiveOverall(player, slotRole) {
-  if (!player) return 0;
-  if (player.role === slotRole) return player.overall;
-  const compatible = {
-    TS: ["DC", "AS"],
-    TD: ["DC", "AD"],
-    DC: ["TS", "TD", "MED"],
-    MED: ["CC", "DC"],
-    CC: ["MED", "COC"],
-    COC: ["CC", "ATT"],
-    AS: ["AD", "ATT", "TS"],
-    AD: ["AS", "ATT", "TD"],
-    ATT: ["AS", "AD", "COC"],
-    POR: []
-  };
-  return Math.max(45, player.overall - (compatible[player.role]?.includes(slotRole) ? 5 : 12));
-}
-
-function sampleGoals(expected) {
-  let goals = 0;
-  for (let i = 0; i < 5; i += 1) {
-    if (Math.random() < Math.min(0.82, expected / 5)) goals += 1;
-  }
-  return Math.min(7, goals);
-}
-
-function assignGoal(lobby, manager, teamName) {
-  const starters = buildLineup(manager, manager.formation || lobby.settings.formation).filter(Boolean);
-  const scorer = weightedPick(starters, "goals");
-  if (!scorer) return;
-  scorer.stats.goals += 1;
-  const minute = 1 + Math.floor(Math.random() * 90);
-  const text = `${minute}' ${scorer.name}`;
-  const assistPool = starters.filter((player) => player !== scorer && player.role !== "POR");
-  if (assistPool.length && Math.random() < 0.78) {
-    const assister = weightedPick(assistPool, "assists");
-    assister.stats.assists += 1;
-  }
-  return text;
-}
-
-function sampleShots(strength, tactic = tacticProfiles.balanced) {
-  return Math.max(1, Math.round((5 + Math.random() * 8 + Math.max(0, strength - 70) / 5) * tactic.shots));
-}
-
-function tableSnapshot(managers) {
-  return [...managers]
-    .sort((a, b) => b.stats.points - a.stats.points || (b.stats.gf - b.stats.ga) - (a.stats.gf - a.stats.ga) || b.stats.gf - a.stats.gf)
-    .map((manager) => ({ id: manager.id, name: manager.name, color: manager.color, isBot: manager.isBot, stats: { ...manager.stats } }));
-}
-
-function weightedPick(items, type) {
-  const weighted = items.map((player) => ({ player, weight: Math.max(0.05, (roleWeights[player.role]?.[type] || 0.4) * (player.overall / 75)) }));
-  let cursor = Math.random() * weighted.reduce((sum, item) => sum + item.weight, 0);
-  for (const item of weighted) {
-    cursor -= item.weight;
-    if (cursor <= 0) return item.player;
-  }
-  return weighted[0]?.player;
-}
-
-function updateStats(manager, gf, ga) {
-  manager.stats.played += 1;
-  manager.stats.gf += gf;
-  manager.stats.ga += ga;
-  if (gf > ga) {
-    manager.stats.won += 1;
-    manager.stats.points += 3;
-  } else if (gf === ga) {
-    manager.stats.drawn += 1;
-    manager.stats.points += 1;
-  } else {
-    manager.stats.lost += 1;
-  }
-  manager.squad.forEach((player) => {
-    if (!player.stats) player.stats = emptyPlayerStats();
-  });
-}
-
-async function handleApi(req, res, parts, url) {
-  const body = await readBody(req);
-  if (req.method === "POST" && parts[1] === "lobbies" && parts.length === 2) {
-    const settings = {
-      credits: clamp(body.credits || 650, 250, 1200),
-      rounds: clamp(body.rounds || 24, 12, players.length),
-      formation: formationNeeds[body.formation] ? body.formation : "4-3-3",
-      botCount: clamp(body.botCount || 0, 0, 20),
-      botDifficulty: botDifficultyRanges[body.botDifficulty] ? body.botDifficulty : "normal"
-    };
-    const lobbyCode = code();
-    const host = newPlayer(body.name, settings.credits, settings.formation, true, colors[0]);
-    const lobby = {
-      code: lobbyCode,
-      hostId: host.id,
-      status: "lobby",
-      settings,
-      managers: [host],
-      pool: buildBalancedAuctionPool(players, settings.rounds, [host.formation]),
-      auction: { index: 0, currentBid: 0, leaderId: null, endsAt: 0 },
-      log: [],
-      results: null,
-      finishedAt: null,
-      resultSeenBy: [],
-      skipVotes: [],
-      createdAt: now(),
-      updatedAt: now()
-    };
-    lobbies.set(lobbyCode, lobby);
-    return json(res, 200, { code: lobbyCode, playerId: host.id });
-  }
-
-  const lobby = lobbies.get(parts[2]);
-  if (!lobby) return json(res, 404, { error: "Lobby non trovata" });
-  if (lobby.status !== "results") touchLobby(lobby);
-
-  if (req.method === "POST" && parts[3] === "join") {
-    if (lobby.status !== "lobby") return json(res, 400, { error: "Asta gia iniziata" });
-    const managerFormation = formationNeeds[body.formation] ? body.formation : lobby.settings.formation;
-    const manager = newPlayer(body.name, lobby.settings.credits, managerFormation, false, nextColor(lobby));
-    lobby.managers.push(manager);
-    lobby.log.push(`${manager.name} entra in lobby`);
-    return json(res, 200, { code: lobby.code, playerId: manager.id });
-  }
-
-  if (req.method === "GET" && parts.length === 3) {
-    return json(res, 200, publicLobby(lobby, url.searchParams.get("playerId")));
-  }
-
-  const playerId = body.playerId;
-  if (req.method === "POST" && parts[3] === "start") {
-    if (playerId !== lobby.hostId) return json(res, 403, { error: "Solo host" });
-    removeInactivePlayers(lobby);
-    const humanManagers = lobby.managers.filter((manager) => !manager.isBot);
-    if (humanManagers.length < 2 && (lobby.settings.botCount || 0) <= 0) return json(res, 400, { error: "Serve almeno un amico o un bot" });
-    const notReady = humanManagers.filter((manager) => !manager.ready);
-    if (notReady.length) return json(res, 400, { error: `Non pronti: ${notReady.map((manager) => manager.name).join(", ")}` });
-    lobby.managers.forEach((manager) => {
-      manager.ready = false;
-      manager.squad = [];
-      manager.lineup = {};
-      manager.tactic = "balanced";
-      manager.credits = lobby.settings.credits;
-    });
-    lobby.skipVotes = [];
-    lobby.results = null;
-    lobby.pool = buildBalancedAuctionPool(players, lobby.settings.rounds, lobby.managers.filter((manager) => !manager.isBot).map((manager) => manager.formation || lobby.settings.formation));
-    startAuction(lobby);
-    return json(res, 200, publicLobby(lobby, playerId));
-  }
-  if (req.method === "POST" && parts[3] === "settings") {
-    if (playerId !== lobby.hostId || lobby.status !== "lobby") return json(res, 403, { error: "Solo host in lobby" });
-    lobby.settings.credits = clamp(body.credits, 250, 1200);
-    lobby.settings.rounds = clamp(body.rounds, 12, players.length);
-    lobby.settings.botCount = clamp(body.botCount || 0, 0, Math.max(0, 20 - lobby.managers.filter((manager) => !manager.isBot).length));
-    lobby.settings.botDifficulty = botDifficultyRanges[body.botDifficulty] ? body.botDifficulty : lobby.settings.botDifficulty || "normal";
-    lobby.settings.formation = formationNeeds[body.formation] ? body.formation : lobby.settings.formation;
-    lobby.pool = buildBalancedAuctionPool(players, lobby.settings.rounds, lobby.managers.filter((manager) => !manager.isBot).map((manager) => manager.formation || lobby.settings.formation));
-    lobby.managers.forEach((manager) => {
-      manager.credits = lobby.settings.credits;
-      manager.ready = false;
-      if (!formationNeeds[manager.formation]) manager.formation = lobby.settings.formation;
-    });
-    lobby.log.push("Impostazioni lobby aggiornate");
-    return json(res, 200, publicLobby(lobby, playerId));
-  }
-  if (req.method === "POST" && parts[3] === "profile") {
-    const manager = lobby.managers.find((item) => item.id === playerId);
-    if (!manager || lobby.status !== "lobby") return json(res, 400, { error: "Manager non valido" });
-    const colorTaken = lobby.managers.some((item) => item.id !== manager.id && item.color === body.color);
-    if (colors.includes(body.color) && !colorTaken) manager.color = body.color;
-    if (formationNeeds[body.formation] && body.formation !== manager.formation) {
-      manager.formation = body.formation;
-      lobby.pool = buildBalancedAuctionPool(players, lobby.settings.rounds, lobby.managers.filter((item) => !item.isBot).map((item) => item.formation || lobby.settings.formation));
-      manager.ready = false;
-    }
-    return json(res, 200, publicLobby(lobby, playerId));
-  }
-  if (req.method === "POST" && parts[3] === "lobby-ready") {
-    const manager = lobby.managers.find((item) => item.id === playerId);
-    if (!manager || lobby.status !== "lobby") return json(res, 400, { error: "Manager non valido" });
-    manager.ready = Boolean(body.ready);
-    return json(res, 200, publicLobby(lobby, playerId));
-  }
-  if (req.method === "POST" && parts[3] === "bid") {
-    placeBid(lobby, playerId, body.increment);
-    return json(res, 200, publicLobby(lobby, playerId));
-  }
-  if (req.method === "POST" && parts[3] === "fill") {
-    if (lobby.status !== "squad") return json(res, 400, { error: "Asta non ancora terminata" });
-    fillVacancies(lobby, playerId);
-    return json(res, 200, publicLobby(lobby, playerId));
-  }
-  if (req.method === "POST" && parts[3] === "ready") {
-    if (lobby.status !== "squad") return json(res, 400, { error: "Asta non ancora terminata" });
-    markReady(lobby, playerId, body.tactic, body.lineup);
-    return json(res, 200, publicLobby(lobby, playerId));
-  }
-  if (req.method === "POST" && parts[3] === "lineup") {
-    if (lobby.status !== "squad") return json(res, 400, { error: "Asta non ancora terminata" });
-    const manager = lobby.managers.find((item) => item.id === playerId);
-    if (!manager) return json(res, 400, { error: "Manager non valido" });
-    manager.lineup = body.lineup && typeof body.lineup === "object" ? body.lineup : manager.lineup || {};
-    if (body.tactic) manager.tactic = body.tactic;
-    manager.ready = false;
-    return json(res, 200, publicLobby(lobby, playerId));
-  }
-  if (req.method === "POST" && parts[3] === "simulate") {
-    if (playerId !== lobby.hostId) return json(res, 403, { error: "Solo host" });
-    if (lobby.status !== "squad") return json(res, 400, { error: "Rosa non pronta" });
-    if (!lobby.managers.every((manager) => manager.ready)) return json(res, 400, { error: "Tutti devono essere pronti" });
-    simulate(lobby);
-    return json(res, 200, publicLobby(lobby, playerId));
-  }
-  if (req.method === "POST" && parts[3] === "skip") {
-    if (!lobby.skipVotes.includes(playerId)) lobby.skipVotes.push(playerId);
-    const required = Math.floor(lobby.managers.filter((manager) => !manager.isBot).length / 2) + 1;
-    if (lobby.results && lobby.skipVotes.length >= required) {
-      lobby.results.skipResolved = true;
-      lobby.log.push("Skip simulazione approvato");
-    }
-    return json(res, 200, { skipVotes: lobby.skipVotes.length, required, skipResolved: Boolean(lobby.results?.skipResolved) });
-  }
-  return json(res, 404, { error: "Endpoint non trovato" });
-}
-
-function serveStatic(req, res, pathname) {
-  const safePath = pathname === "/" ? "/index.html" : pathname;
-  const filePath = path.join(ROOT, safePath);
-  if (!filePath.startsWith(ROOT)) {
-    res.writeHead(403);
-    res.end();
-    return;
-  }
-  fs.readFile(filePath, (error, content) => {
-    if (error) {
-      res.writeHead(404);
-      res.end("Not found");
-      return;
-    }
-    const ext = path.extname(filePath);
-    const type = ext === ".js" ? "text/javascript" : ext === ".css" ? "text/css" : "text/html";
-    res.writeHead(200, { "Content-Type": type });
-    res.end(content);
-  });
-}
-
-const server = http.createServer((req, res) => {
-  cleanupLobbies();
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const parts = url.pathname.split("/").filter(Boolean);
-  if (parts[0] === "api") {
-    handleApi(req, res, parts, url);
-    return;
-  }
-  serveStatic(req, res, url.pathname);
-});
-
-setInterval(cleanupLobbies, CLEANUP_INTERVAL_MS).unref();
-
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`FTBALL Friends multiplayer server: http://0.0.0.0:${PORT}`);
-  console.log(`Temporary lobby TTL: ${Math.round(LOBBY_TTL_MS / 60000)} minutes`);
-});
 
 

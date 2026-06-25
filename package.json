@@ -1,22 +1,9 @@
-{
-  "name": "ftball-friends",
-  "version": "0.1.0",
-  "description": "Browser football manager party game with single player and temporary multiplayer lobbies.",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "check": "node --check app.js && node --check server.js"
-  },
-  "keywords": [
-    "football",
-    "manager",
-    "browser-game",
-    "multiplayer",
-    "auction"
-  ],
-  "author": "",
-  "license": "MIT",
-  "engines": {
-    "node": ">=18"
-  }
-}
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.DS_Store
+Thumbs.db
+.agents/
