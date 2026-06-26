@@ -168,11 +168,11 @@
                 <input id="auctionPlayersInput" type="number" min="12" max="300" step="1" value="24" />
               </label>
               <label>
-                Avversari IA
+                IA in asta
                 <input id="aiPlayersInput" type="number" min="1" max="8" step="1" value="3" />
               </label>
             </div>
-            <p id="setupSummary" class="setup-summary">Budget 650 cr - 24 giocatori in asta - 3 IA</p>
+            <p id="setupSummary" class="setup-summary">Budget 650 cr - 24 giocatori in asta - 3 IA asta - campionato a 20 squadre</p>
             <button id="startGameBtn" class="primary-button" type="button">Avvia asta</button>
           </div>
           <div class="panel compact">

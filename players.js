@@ -252,6 +252,31 @@ function createManagers(config) {
   return [user, ...rivals];
 }
 
+const leagueCpuNames = [
+  "Northbridge FC",
+  "Valencia Verde",
+  "Olympique Horizon",
+  "Rapid Aurora",
+  "Union Capital",
+  "Racing Portuale",
+  "Borgo Athletic",
+  "Inter Collina",
+  "Real Tramonto",
+  "Dinamo Riviera",
+  "Sporting Vetta",
+  "Atletico Centrale",
+  "Stella Sud",
+  "Lokomotiv Mare",
+  "United Nord",
+  "Citta Nova",
+  "AFC Metropoli",
+  "Virtus Arena",
+  "Blue Harbor",
+  "Red Valley",
+  "Golden Eleven",
+  "Green Park FC"
+];
+
 function managerById(id) {
   return state.managers.find((manager) => manager.id === id);
 }
@@ -321,7 +346,7 @@ function createEmptyStats() {
 }
 
 function createEmptyPlayerStats() {
-  return { apps: 0, goals: 0, assists: 0 };
+  return { goals: 0, assists: 0 };
 }
 
 function slotId(role, index, formation = state.config.formation) {
@@ -388,6 +413,53 @@ function makeGeneratedPlayer(role) {
     generated: true,
     stats: createEmptyPlayerStats()
   };
+}
+
+function cpuLeagueOverallRange() {
+  const key = state.config?.key || "normal";
+  if (key === "easy") return [66, 79];
+  if (key === "hard") return [72, 86];
+  if (key === "expert") return [74, 88];
+  return [69, 84];
+}
+
+function makeLeagueCpuPlayer(role) {
+  const player = makeGeneratedPlayer(role);
+  const [min, max] = cpuLeagueOverallRange();
+  player.overall = min + Math.floor(Math.random() * (max - min + 1));
+  player.nation = "CPU League";
+  player.generated = true;
+  return player;
+}
+
+function createLeagueCpuManager(index) {
+  const formations = Object.keys(formationNeeds);
+  const formation = formations[Math.floor(Math.random() * formations.length)];
+  const squad = formationNeeds[formation].map((role) => makeLeagueCpuPlayer(role));
+  return {
+    id: `league-cpu-${index}-${Math.random().toString(36).slice(2, 7)}`,
+    name: leagueCpuNames[index % leagueCpuNames.length],
+    credits: 0,
+    squad,
+    lineup: {},
+    formation,
+    tactic: ["balanced", "counter", "possession", "direct", "wide", "lowblock"][Math.floor(Math.random() * 6)],
+    stats: createEmptyStats(),
+    isUser: false,
+    isLeagueCpu: true
+  };
+}
+
+function fillLeagueToTwentyTeams() {
+  const target = 20;
+  let index = 0;
+  while (state.managers.length < target) {
+    const cpu = createLeagueCpuManager(index);
+    if (!state.managers.some((manager) => manager.name === cpu.name)) {
+      state.managers.push(cpu);
+    }
+    index += 1;
+  }
 }
 
 function fillVacantSlots(manager = getUser()) {
@@ -637,9 +709,10 @@ function startLiveSimulation(results) {
   state.liveSimulation.rounds = results.rounds || [];
   state.simulation = results;
   $("liveMatchFeed").innerHTML = "";
+  $("skipSimBtn").textContent = state.mode === "multi" ? "Vota skip" : "Vai alla classifica finale";
   showView("live");
   renderNextLiveRound();
-  state.liveSimulation.timer = setInterval(renderNextLiveRound, 2000);
+  state.liveSimulation.timer = setInterval(renderNextLiveRound, state.mode === "multi" ? 2000 : 1000);
 }
 
 function renderNextLiveRound() {
@@ -1535,7 +1608,7 @@ function updateTeamStats(manager, gf, ga) {
     .starters.map((slot) => slot.player)
     .filter(Boolean)
     .forEach((player) => {
-      player.stats.apps += 1;
+      if (!player.stats) player.stats = createEmptyPlayerStats();
     });
 }
 
@@ -1584,6 +1657,7 @@ function simulateSeason() {
   state.config.tactic = $("tacticSelect").value;
   getUser().tactic = state.config.tactic;
   state.managers.filter((manager) => !manager.isUser).forEach((manager) => fillVacantSlots(manager));
+  fillLeagueToTwentyTeams();
   state.managers.forEach(ensurePlayerStats);
   resetSeasonStats();
 
@@ -1593,7 +1667,7 @@ function simulateSeason() {
   });
 
   state.simulation = { rounds };
-  showResults();
+  startLiveSimulation(state.simulation);
 }
 
 function showResults() {
@@ -1736,7 +1810,7 @@ function updateSetupSummary() {
   $("creditsInput").value = credits;
   $("auctionPlayersInput").value = rounds;
   $("aiPlayersInput").value = rivals;
-  $("setupSummary").textContent = `Budget ${credits} cr - ${rounds} giocatori in asta - ${rivals} IA`;
+  $("setupSummary").textContent = `Budget ${credits} cr - ${rounds} giocatori in asta - ${rivals} IA asta - campionato a 20 squadre`;
 }
 
 $("singleModeBtn").addEventListener("click", () => showView("setup"));
