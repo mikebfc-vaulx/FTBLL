@@ -1,347 +1,687 @@
-<!doctype html>
-<html lang="it">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FTBALL Friends</title>
-    <meta name="theme-color" content="#07110d" />
-    <link rel="icon" href="ftball-logo.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=2" />
-  </head>
-  <body data-view="home">
-    <main class="app-shell">
-      <section class="topbar">
-        <div class="brand-lockup">
-          <img class="brand-logo" src="ftball-logo.svg?v=2" alt="" width="48" height="56" />
-          <div>
-            <p class="eyebrow">Football auction manager</p>
-            <h1>FTBALL <span>Friends</span></h1>
-          </div>
-        </div>
-        <nav class="phase-tabs" aria-label="Fasi della partita">
-          <span data-phase="lobby">Lobby</span>
-          <span data-phase="game">Asta</span>
-          <span data-phase="squad">Rosa</span>
-          <span data-phase="live">Campionato</span>
-          <span data-phase="results">Risultati</span>
-        </nav>
-        <button id="resetBtn" class="ghost-button" type="button">Nuova partita</button>
-      </section>
+:root {
+  --ui-bg: #050a08;
+  --ui-bg-soft: #09110e;
+  --ui-panel: #101915;
+  --ui-panel-2: #15211b;
+  --ui-panel-3: #1b2922;
+  --ui-text: #f3f7f4;
+  --ui-muted: #91a198;
+  --ui-line: #2a3a31;
+  --ui-green: #c6ff37;
+  --ui-green-dark: #76b900;
+  --ui-cyan: #55dbe8;
+  --ui-gold: #ffc857;
+  --ui-red: #ff5d64;
+  --ui-shadow: 0 18px 46px rgba(0, 0, 0, 0.32);
+}
 
-      <section id="homeView" class="view active">
-        <div class="hero-panel">
-          <div>
-            <p class="eyebrow">Il mercato apre ora</p>
-            <h2>Costruisci la tua squadra. Sfida tutti.</h2>
-            <p class="muted">
-              Asta flash, gestione della rosa e un'intera stagione da vivere con gli amici o contro l'intelligenza artificiale.
-            </p>
-          </div>
-          <div class="mode-grid">
-            <button id="singleModeBtn" class="mode-card" type="button">
-              <span class="mode-index">01</span>
-              <span>Single player</span>
-              <strong>Asta contro IA</strong>
-              <small>Inizia subito</small>
-            </button>
-            <button id="multiModeBtn" class="mode-card" type="button">
-              <span class="mode-index">02</span>
-              <span>Multiplayer</span>
-              <strong>Lobby amici</strong>
-              <small>Crea o entra</small>
-            </button>
-          </div>
-        </div>
-      </section>
+html {
+  color-scheme: dark;
+}
 
-      <section id="multiView" class="view">
-        <div class="setup-grid">
-          <div class="panel">
-            <p class="eyebrow">Multiplayer</p>
-            <h2>Crea lobby</h2>
-            <div class="field-stack">
-              <label>
-                Nome host
-                <input id="hostNameInput" type="text" maxlength="18" value="Host" />
-              </label>
-            </div>
-            <button id="createLobbyBtn" class="primary-button" type="button">Crea lobby host</button>
-          </div>
+body {
+  color: var(--ui-text);
+  background:
+    linear-gradient(rgba(5, 10, 8, 0.94), rgba(5, 10, 8, 0.98)),
+    repeating-linear-gradient(115deg, transparent 0 68px, rgba(198, 255, 55, 0.045) 69px 70px),
+    #050a08;
+}
 
-          <div class="panel">
-            <p class="eyebrow">Entra</p>
-            <h2>Unisciti a una lobby</h2>
-            <div class="field-stack">
-              <label>
-                Il tuo nome
-                <input id="joinNameInput" type="text" maxlength="18" value="Manager" />
-              </label>
-              <label>
-                Codice lobby
-                <input id="joinCodeInput" type="text" maxlength="6" placeholder="ABC123" />
-              </label>
-            </div>
-            <button id="joinLobbyBtn" class="primary-button" type="button">Entra in lobby</button>
-            <p id="multiStatusText" class="setup-summary">Avvia server.js per usare il multiplayer.</p>
-          </div>
-        </div>
-      </section>
+body::before {
+  background:
+    radial-gradient(circle at 12% -8%, rgba(198, 255, 55, 0.15), transparent 28%),
+    radial-gradient(circle at 90% 8%, rgba(85, 219, 232, 0.09), transparent 24%);
+}
 
-      <section id="lobbyView" class="view">
-        <div class="lobby-layout">
-          <div class="panel lobby-panel">
-            <p class="eyebrow">Lobby multiplayer</p>
-            <h2>Codice: <span id="lobbyCodeLabel">------</span></h2>
-            <div class="share-box">
-              <span id="lobbyShareLink">Link non disponibile</span>
-              <button id="copyLobbyLinkBtn" class="ghost-button" type="button">Copia link</button>
-            </div>
-            <p id="lobbySettingsLabel" class="muted"></p>
-            <div class="lobby-profile">
-              <div class="color-picker-field">
-                <span>Colore</span>
-                <button id="lobbyColorButton" class="single-color-button" type="button" aria-label="Cambia colore"></button>
-                <input id="lobbyColorInput" type="hidden" value="#1e8e4d" />
-              </div>
-              <label>
-                Tua formazione
-                <select id="lobbyFormationSelect">
-                  <option value="4-3-3">4-3-3</option>
-                  <option value="4-4-2">4-4-2</option>
-                  <option value="3-5-2">3-5-2</option>
-                  <option value="4-2-3-1">4-2-3-1</option>
-                  <option value="3-4-3">3-4-3</option>
-                </select>
-              </label>
-              <button id="lobbyReadyBtn" class="primary-button" type="button">Pronto</button>
-            </div>
-            <p id="lobbyActionStatus" class="muted status-text"></p>
-            <div id="lobbyPlayersList" class="lobby-players-list"></div>
-            <button id="startLobbyAuctionBtn" class="primary-button" type="button">Avvia asta host</button>
-          </div>
-          <aside class="panel lobby-settings-panel">
-            <p class="eyebrow">Settaggi host</p>
-            <h2>Partita</h2>
-            <div class="field-stack">
-              <label>
-                Crediti
-                <input id="lobbyCreditsInput" type="number" min="250" max="1200" step="10" />
-              </label>
-              <label>
-                Giocatori in asta
-                <input id="lobbyRoundsInput" type="number" min="12" max="300" step="1" />
-              </label>
-              <label>
-                Bot simulazione
-                <input id="lobbyBotsInput" type="number" min="0" max="20" step="1" />
-              </label>
-              <label id="lobbyBotDifficultyField" class="bot-difficulty-field is-hidden">
-                Difficolta bot
-                <select id="lobbyBotDifficultySelect">
-                  <option value="easy">Facile</option>
-                  <option value="normal" selected>Media</option>
-                  <option value="hard">Difficile</option>
-                </select>
-              </label>
-            </div>
-            <button id="saveLobbySettingsBtn" class="ghost-button" type="button">Salva settaggi</button>
-          </aside>
-        </div>
-      </section>
+.app-shell {
+  width: min(1440px, calc(100% - 36px));
+}
 
-      <section id="setupView" class="view">
-        <div class="setup-grid">
-          <div class="panel">
-            <p class="eyebrow">Single player</p>
-            <h2>Imposta la partita</h2>
-            <div class="field-stack">
-              <label>
-                Difficolta
-                <select id="difficultySelect">
-                  <option value="easy">Facile</option>
-                  <option value="normal" selected>Normale</option>
-                  <option value="hard">Difficile</option>
-                  <option value="expert">Esperto</option>
-                </select>
-              </label>
-              <label>
-                Modulo
-                <select id="formationSelect">
-                  <option value="4-3-3">4-3-3</option>
-                  <option value="4-4-2">4-4-2</option>
-                  <option value="3-5-2">3-5-2</option>
-                  <option value="4-2-3-1">4-2-3-1</option>
-                  <option value="3-4-3">3-4-3</option>
-                </select>
-              </label>
-              <label>
-                Crediti iniziali
-                <input id="creditsInput" type="number" min="250" max="1200" step="10" value="650" />
-              </label>
-              <label>
-                Giocatori in asta
-                <input id="auctionPlayersInput" type="number" min="12" max="300" step="1" value="24" />
-              </label>
-              <label>
-                IA in asta
-                <input id="aiPlayersInput" type="number" min="1" max="8" step="1" value="3" />
-              </label>
-            </div>
-            <p id="setupSummary" class="setup-summary">Budget 650 cr - 24 giocatori in asta - 3 IA asta - campionato a 20 squadre</p>
-            <button id="startGameBtn" class="primary-button" type="button">Avvia asta</button>
-          </div>
-          <div class="panel compact">
-            <p class="eyebrow">Regole rapide</p>
-            <ul class="rules-list">
-              <li>Budget iniziale e numero giocatori personalizzabili.</li>
-              <li>Ogni giocatore resta 10 secondi in asta.</li>
-              <li>Ogni rilancio negli ultimi secondi riporta il timer a 5.</li>
-              <li>Vince chi chiude con rosa piu forte ed equilibrata.</li>
-            </ul>
-          </div>
-        </div>
-      </section>
+.topbar {
+  min-height: 76px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(12, 21, 17, 0.88);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(12px);
+}
 
-      <section id="gameView" class="view">
-        <div class="game-layout">
-          <aside class="panel manager-panel">
-            <p id="userPanelTitle" class="eyebrow">Manager</p>
-            <h2>La tua squadra</h2>
-            <div class="stat-row">
-              <span>Crediti</span>
-              <strong id="userCredits">0</strong>
-            </div>
-            <div class="stat-row">
-              <span>Modulo</span>
-              <strong id="userFormation">4-3-3</strong>
-            </div>
-            <div class="stat-row">
-              <span>Valutazione</span>
-              <strong id="teamRating">0</strong>
-            </div>
-            <div class="mini-lineup-block">
-              <p class="eyebrow">Anteprima modulo</p>
-              <div id="auctionFitMessage" class="fit-message">In attesa del prossimo giocatore.</div>
-              <div id="miniFormation" class="mini-formation"></div>
-            </div>
-            <div id="squadList" class="squad-list"></div>
-          </aside>
+.brand-logo {
+  width: 46px;
+  height: 54px;
+}
 
-          <section class="auction-stage">
-            <div class="auction-card">
-              <div class="auction-header">
-                <span id="roundLabel">Asta 1/1</span>
-                <span id="timerLabel" class="timer">10.0</span>
-              </div>
-              <p id="playerRole" class="role-pill">ATT</p>
-              <h2 id="playerName">Nome giocatore</h2>
-              <div class="player-meta">
-                <span id="playerNation">Italia</span>
-                <span id="playerAge">24 anni</span>
-                <span>OVR <strong id="playerOverall">80</strong></span>
-              </div>
-              <div class="current-bid">
-                <span>Offerta attuale</span>
-                <strong id="currentBid">0</strong>
-                <small id="currentLeader">Nessuna offerta</small>
-              </div>
-              <div class="bid-controls">
-                <button data-bid="1" type="button">+1</button>
-                <button data-bid="5" type="button">+5</button>
-                <button data-bid="10" type="button">+10</button>
-                <button data-bid="25" type="button">+25</button>
-              </div>
-              <p id="auctionMessage" class="muted status-text">Preparati al primo nome.</p>
-            </div>
-          </section>
+.topbar h1 {
+  color: #fff;
+  font-size: clamp(1.45rem, 2.3vw, 2.05rem);
+}
 
-          <aside class="panel rivals-panel">
-            <p id="rivalsTitle" class="eyebrow">Avversari AI</p>
-            <h2>Lobby</h2>
-            <div id="rivalsList" class="rivals-list"></div>
-            <div class="log-box">
-              <p class="eyebrow">Log asta</p>
-              <div id="auctionLog"></div>
-            </div>
-          </aside>
-        </div>
-      </section>
+.topbar h1 span {
+  color: var(--ui-green);
+}
 
-      <section id="squadView" class="view">
-        <div class="squad-builder">
-          <div class="panel squad-toolbar">
-            <div>
-              <p class="eyebrow">Gestione rosa</p>
-              <h2>Schiera i titolari</h2>
-              <p id="lineupSummary" class="muted"></p>
-            </div>
-            <label class="tactic-control">
-              Tattica
-              <select id="tacticSelect">
-                <option value="balanced">Equilibrata</option>
-                <option value="pressing">Pressing alto</option>
-                <option value="counter">Contropiede</option>
-                <option value="possession">Possesso</option>
-                <option value="direct">Verticale</option>
-                <option value="wide">Gioco sulle fasce</option>
-                <option value="lowblock">Blocco basso</option>
-              </select>
-            </label>
-            <div class="toolbar-actions">
-              <button id="autoFillBtn" class="ghost-button" type="button">Genera posti vacanti</button>
-              <button id="simulateBtn" class="primary-button" type="button">Simula stagione</button>
-            </div>
-          </div>
+.topbar .eyebrow {
+  color: #7e9187;
+}
 
-          <div id="squadStatsBox" class="squad-stats-box"></div>
+.phase-tabs {
+  border-color: var(--ui-line);
+  background: #080e0b;
+}
 
-          <div class="lineup-layout">
-            <section class="pitch-panel">
-              <div id="footballPitch" class="football-pitch"></div>
-            </section>
-            <aside class="panel bench-panel">
-              <p class="eyebrow">Panchina</p>
-              <h2>Disponibili</h2>
-              <div id="benchList" class="bench-list"></div>
-            </aside>
-          </div>
-        </div>
-      </section>
+.phase-tabs span {
+  color: #718078;
+}
 
-      <section id="resultsView" class="view">
-        <div class="season-results">
-          <div class="panel results-panel">
-            <p class="eyebrow">Stagione simulata</p>
-            <h2 id="resultTitle">Classifica finale</h2>
-            <div id="winnerCelebration" class="winner-celebration" aria-live="polite"></div>
-            <p id="resultSummary" class="muted"></p>
-            <div id="standingsList" class="league-table"></div>
-            <button id="playAgainBtn" class="primary-button" type="button">Gioca ancora</button>
-          </div>
-          <div class="panel player-stats-panel">
-            <p class="eyebrow">Statistiche giocatori</p>
-            <h2>Gol e assist</h2>
-            <div id="playerStatsList" class="player-stats-list"></div>
-          </div>
-        </div>
-      </section>
+body[data-view="lobby"] .phase-tabs [data-phase="lobby"],
+body[data-view="game"] .phase-tabs [data-phase="game"],
+body[data-view="squad"] .phase-tabs [data-phase="squad"],
+body[data-view="live"] .phase-tabs [data-phase="live"],
+body[data-view="results"] .phase-tabs [data-phase="results"] {
+  color: #071009;
+  background: var(--ui-green);
+  box-shadow: 0 0 22px rgba(198, 255, 55, 0.2);
+}
 
-      <section id="liveSimView" class="view">
-        <div class="live-sim-layout">
-          <section class="panel live-feed-panel">
-            <p class="eyebrow">Simulazione live</p>
-            <h2 id="liveRoundTitle">Giornata 1</h2>
-            <button id="skipSimBtn" class="ghost-button" type="button">Vota skip</button>
-            <div id="liveMatchFeed" class="live-match-feed"></div>
-          </section>
-          <aside class="panel live-table-panel">
-            <p class="eyebrow">Classifica live</p>
-            <div id="liveTable" class="league-table"></div>
-          </aside>
-        </div>
-      </section>
-    </main>
-    <script src="players.js?v=2"></script>
-    <script src="app.js?v=2"></script>
-  </body>
-</html>
+.hero-panel,
+.panel {
+  color: var(--ui-text);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-panel);
+  box-shadow: var(--ui-shadow);
+}
+
+.panel {
+  position: relative;
+}
+
+.panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.025), transparent 34%);
+}
+
+.panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.muted,
+label,
+.rules-list,
+.player-stat-row small,
+.bench-item small,
+.calendar-round small,
+.live-match-card span {
+  color: var(--ui-muted);
+}
+
+.panel > .eyebrow,
+.squad-toolbar .eyebrow,
+.mini-lineup-block > .eyebrow {
+  border-color: #35502f;
+  background: #172717;
+  color: var(--ui-green);
+}
+
+.panel > .eyebrow::before,
+.squad-toolbar .eyebrow::before,
+.mini-lineup-block > .eyebrow::before {
+  background: var(--ui-green);
+}
+
+.hero-panel {
+  grid-template-columns: minmax(0, 1.12fr) minmax(350px, 0.72fr);
+  min-height: min(690px, calc(100vh - 126px));
+  border-color: #25352c;
+  background:
+    linear-gradient(90deg, rgba(7, 13, 10, 0.1) 0 58%, rgba(4, 8, 6, 0.72) 58%),
+    repeating-linear-gradient(90deg, #112219 0 90px, #0d1b14 90px 180px);
+}
+
+.hero-panel::before {
+  inset: 9% auto auto 4%;
+  width: 48%;
+  height: 82%;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0;
+  transform: none;
+}
+
+.hero-panel::after {
+  width: 42%;
+  background:
+    linear-gradient(rgba(198, 255, 55, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(198, 255, 55, 0.04) 1px, transparent 1px),
+    #080e0b;
+  background-size: 26px 26px;
+}
+
+.hero-panel .eyebrow {
+  color: var(--ui-green);
+}
+
+.hero-panel h2 {
+  max-width: 760px;
+  color: #fff;
+  font-size: clamp(2.9rem, 6vw, 6.4rem);
+  text-transform: uppercase;
+}
+
+.hero-panel .muted {
+  color: #aab8b0;
+}
+
+.mode-card {
+  border: 1px solid #314238;
+  background: #101b15;
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.28);
+}
+
+.mode-card:hover {
+  border-color: var(--ui-green);
+  background: #18271f;
+  box-shadow: 0 0 0 1px rgba(198, 255, 55, 0.25), 0 20px 36px rgba(0, 0, 0, 0.32);
+}
+
+.mode-card::after {
+  color: #071009;
+  background: var(--ui-green);
+}
+
+.mode-card > span:not(.mode-index) {
+  color: #90a299;
+}
+
+.mode-card small,
+.mode-index {
+  color: var(--ui-green);
+}
+
+.mode-index {
+  opacity: 0.16;
+}
+
+select,
+input {
+  color: var(--ui-text);
+  border: 1px solid #34443b;
+  background: #09110d;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+select:focus,
+input:focus {
+  border-color: var(--ui-green);
+  box-shadow: 0 0 0 3px rgba(198, 255, 55, 0.13);
+}
+
+select option {
+  color: var(--ui-text);
+  background: #101915;
+}
+
+.primary-button {
+  color: #071009;
+  background: var(--ui-green);
+  box-shadow: 0 8px 20px rgba(118, 185, 0, 0.19);
+}
+
+.primary-button:hover:not(:disabled) {
+  color: #071009;
+  background: #d4ff68;
+  box-shadow: 0 10px 26px rgba(198, 255, 55, 0.25);
+}
+
+.ghost-button,
+.topbar .ghost-button {
+  color: var(--ui-text);
+  border-color: #35463c;
+  background: #17211c;
+}
+
+.ghost-button:hover,
+.topbar .ghost-button:hover {
+  color: var(--ui-green);
+  border-color: var(--ui-green);
+  background: #101a14;
+}
+
+.ghost-button.dirty {
+  color: var(--ui-gold);
+  border-color: var(--ui-gold);
+  background: #2a210e;
+}
+
+.setup-summary {
+  color: #d9ff82;
+  border-color: var(--ui-green-dark);
+  background: #172516;
+}
+
+.bot-difficulty-field {
+  color: var(--ui-gold);
+  border-color: #634d1e;
+  background: #281f0e;
+}
+
+.share-box {
+  color: #c9d4cd;
+  border-color: #405249;
+  background: #0a120e;
+}
+
+.lobby-panel::before,
+.lobby-settings-panel::before,
+.manager-panel::before,
+.rivals-panel::before,
+.live-feed-panel::before,
+.live-table-panel::before,
+.results-panel::before,
+.player-stats-panel::before {
+  background: linear-gradient(90deg, var(--ui-green), var(--ui-cyan));
+}
+
+.lobby-panel h2 span {
+  color: var(--ui-green);
+}
+
+.lobby-settings-panel .field-stack {
+  border-color: var(--ui-line);
+  background: #0a120e;
+}
+
+.single-color-button {
+  border-color: #fff;
+  box-shadow: 0 0 0 4px #101915, 0 0 0 5px #506057;
+}
+
+.rival-card,
+.bench-item,
+.player-stat-row,
+.live-match-card,
+.calendar-round {
+  color: var(--ui-text);
+  border-color: var(--ui-line);
+  background: var(--ui-panel-2);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.16);
+}
+
+.rival-card-head strong,
+.stat-row strong,
+.league-row strong,
+.squad-item strong {
+  color: var(--ui-text);
+}
+
+.rival-metrics span,
+.rival-metrics strong {
+  color: #b9c8c0;
+  background: #0c1511;
+}
+
+.lobby-player-card {
+  background: linear-gradient(105deg, color-mix(in srgb, var(--team-color) 11%, #15211b), #15211b 42%);
+}
+
+.lobby-player-card.offline-player {
+  opacity: 0.48;
+}
+
+.stat-row,
+.rival-row,
+.standing-row {
+  border-color: var(--ui-line);
+}
+
+.stat-row span {
+  color: #7f9288;
+}
+
+.stat-row strong {
+  color: var(--ui-green);
+  background: #19281d;
+}
+
+.mini-lineup-block {
+  border-color: var(--ui-line);
+  background: #0a120e;
+}
+
+.fit-message {
+  color: #c5d1ca;
+  background: #151f1a;
+}
+
+.fit-message.good {
+  color: #dfff97;
+  background: #172817;
+}
+
+.fit-message.bad {
+  color: #ff9ca1;
+  background: #2d1719;
+}
+
+.mini-formation {
+  border-color: rgba(255, 255, 255, 0.68);
+  background: repeating-linear-gradient(90deg, #167945 0 36px, #12673b 36px 72px);
+}
+
+.mini-slot {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.22);
+  background: #0d1913;
+}
+
+.mini-slot.preview-good {
+  color: #071009;
+  border-color: var(--ui-green);
+  background: var(--ui-green);
+}
+
+.squad-item {
+  color: var(--ui-text);
+  border-color: var(--ui-line);
+  border-left-color: var(--ui-green-dark);
+  background: var(--ui-panel-2);
+}
+
+.squad-item small {
+  color: var(--ui-muted);
+}
+
+.auction-card {
+  border-color: #355a2f;
+  background:
+    linear-gradient(120deg, rgba(4, 10, 7, 0.42), transparent 55%),
+    radial-gradient(circle at 85% 18%, rgba(198, 255, 55, 0.18), transparent 22%),
+    repeating-linear-gradient(90deg, #0c2818 0 74px, #0a2115 74px 148px);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.48);
+}
+
+.auction-card::before {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.auction-header {
+  color: #adbbb3;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.timer {
+  color: var(--ui-green);
+  border-color: rgba(198, 255, 55, 0.5);
+  background: rgba(198, 255, 55, 0.08);
+}
+
+.timer.hot {
+  color: #fff;
+  border-color: #ff9297;
+  background: var(--ui-red);
+}
+
+.role-pill {
+  color: #071009;
+  background: var(--ui-green);
+}
+
+.auction-card h2 {
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.player-meta {
+  color: #c2d0c8;
+}
+
+.player-meta span {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.current-bid {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(4, 12, 7, 0.68);
+}
+
+.current-bid strong {
+  color: var(--ui-green);
+}
+
+.bid-controls button {
+  color: #071009;
+  border-bottom-color: #8bb323;
+  background: #edf9d2;
+}
+
+.bid-controls button:hover:not(:disabled) {
+  background: var(--ui-green);
+}
+
+.log-box {
+  border-color: var(--ui-line);
+}
+
+#auctionLog {
+  color: var(--ui-muted);
+}
+
+.squad-toolbar {
+  border-color: #3d503f;
+  background: rgba(16, 25, 21, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+.squad-stats-box {
+  border-color: var(--ui-line);
+  background: #0b130f;
+}
+
+.squad-stats-box::before {
+  color: #071009;
+  background: var(--ui-green);
+}
+
+.squad-stat {
+  color: #b7c7be;
+  border-color: var(--ui-line);
+  background: var(--ui-panel-2);
+}
+
+.squad-stat strong {
+  color: #071009;
+  background: var(--ui-green);
+}
+
+.football-pitch {
+  border-color: #e9f0eb;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.075) 2px, transparent 2px),
+    repeating-linear-gradient(90deg, #147543 0 82px, #0f6539 82px 164px);
+  box-shadow: inset 0 0 0 2px rgba(2, 25, 12, 0.36), 0 24px 64px rgba(0, 0, 0, 0.42);
+}
+
+.pitch-slot {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(7, 14, 10, 0.9);
+}
+
+.pitch-slot strong {
+  color: var(--ui-green);
+}
+
+.pitch-slot:hover,
+.pitch-slot.drop-target {
+  border-color: var(--ui-green);
+  box-shadow: 0 0 0 3px rgba(198, 255, 55, 0.22), 0 15px 30px rgba(0, 0, 0, 0.28);
+}
+
+.pitch-slot.vacant {
+  border-color: #f1898e;
+  background: rgba(74, 18, 22, 0.86);
+}
+
+.bench-panel {
+  border-top-color: var(--ui-gold);
+}
+
+.bench-panel > .eyebrow {
+  color: var(--ui-gold);
+  border-color: #604c20;
+  background: #281f0e;
+}
+
+.bench-item {
+  border-left-color: var(--ui-gold);
+}
+
+.league-table {
+  border-color: var(--ui-line);
+  background: #080f0c;
+}
+
+.league-header {
+  color: #aebdb5;
+  background: #050a08;
+}
+
+.league-row {
+  color: #aebdb5;
+  border-left-color: transparent;
+  background: var(--ui-panel-2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.league-row:hover {
+  background: var(--ui-panel-3);
+}
+
+.league-row:nth-child(2) {
+  border-left-color: var(--ui-gold);
+  background: #2a2516;
+}
+
+.league-row:nth-child(3),
+.league-row:nth-child(4),
+.league-row:nth-child(5) {
+  border-left-color: var(--ui-green-dark);
+}
+
+.league-header span:last-child,
+.league-row strong:last-child {
+  color: var(--ui-green);
+  background: #182618;
+}
+
+.league-row.user-row {
+  border-color: var(--ui-green);
+  background: #19281d;
+  box-shadow: inset 4px 0 0 var(--ui-green), 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.live-feed-panel {
+  background: #0c1410;
+}
+
+.live-feed-panel > h2,
+.results-panel > h2 {
+  border-color: var(--ui-line);
+}
+
+.live-round-results span,
+.calendar-match {
+  color: #dce4df;
+  background: #0a120e;
+}
+
+.live-round-results strong,
+.live-round-card > strong,
+.calendar-round > strong {
+  color: #071009;
+  background: var(--ui-green);
+}
+
+.winner-celebration {
+  color: #fff;
+  border-color: #6b5423;
+  border-left-color: var(--ui-gold);
+  background:
+    radial-gradient(circle at 18% 10%, rgba(255, 200, 87, 0.2), transparent 28%),
+    #241d0e;
+}
+
+.winner-celebration strong {
+  color: #fff;
+}
+
+.winner-celebration small {
+  color: #d7c99f;
+}
+
+.player-stat-row {
+  border-left-color: var(--ui-cyan);
+}
+
+.star-player-name,
+.star-overall {
+  color: var(--ui-gold);
+}
+
+.star-card {
+  border-color: var(--ui-gold) !important;
+  box-shadow: 0 0 0 2px rgba(255, 200, 87, 0.15), 0 14px 28px rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 980px) {
+  .hero-panel {
+    grid-template-columns: 1fr;
+    background: #0d1812;
+  }
+
+  .hero-panel::before {
+    width: 86%;
+  }
+
+  .hero-panel::after {
+    width: 100%;
+    height: 44%;
+  }
+}
+
+@media (max-width: 620px) {
+  .app-shell {
+    width: min(100% - 14px, 1440px);
+  }
+
+  .topbar {
+    padding: 7px;
+  }
+
+  .hero-panel {
+    padding: 24px 18px 18px;
+  }
+
+  .hero-panel h2 {
+    font-size: clamp(2.45rem, 13vw, 3.8rem);
+  }
+
+  .hero-panel::after {
+    height: 48%;
+  }
+
+  .panel,
+  .auction-card {
+    padding: 17px;
+  }
+
+  .auction-card h2 {
+    font-size: clamp(2.15rem, 12vw, 3.4rem);
+  }
+}
