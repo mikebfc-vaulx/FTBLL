@@ -629,6 +629,37 @@ select option {
   border-left-color: var(--ui-cyan);
 }
 
+.stats-subtitle {
+  color: #71837a;
+}
+
+.team-player-stats {
+  border-color: var(--ui-line);
+}
+
+.team-stats-heading h3 {
+  color: var(--ui-text);
+}
+
+.team-player-stat-row {
+  border-left-color: var(--ui-green-dark);
+}
+
+.keeper-stat-row {
+  border-left-color: var(--ui-gold);
+  background: #211c10;
+}
+
+.keeper-stat-row strong {
+  color: var(--ui-gold);
+  background: #302611;
+}
+
+.empty-stats-message {
+  border-color: var(--ui-line);
+  background: #0a120e;
+}
+
 .star-player-name,
 .star-overall {
   color: var(--ui-gold);

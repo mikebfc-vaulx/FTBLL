@@ -99,7 +99,8 @@ const state = {
     playerId: null,
     hostId: null,
     isHost: false,
-    pollId: null
+    pollId: null,
+    bidPending: false
   }
 };
 
@@ -348,7 +349,7 @@ function createEmptyStats() {
 }
 
 function createEmptyPlayerStats() {
-  return { goals: 0, assists: 0 };
+  return { goals: 0, assists: 0, conceded: 0 };
 }
 
 function slotId(role, index, formation = state.config.formation) {
@@ -526,6 +527,7 @@ function clearMultiplayerSession() {
   state.multiplayer.playerId = null;
   state.multiplayer.hostId = null;
   state.multiplayer.isHost = false;
+  state.multiplayer.bidPending = false;
   state.lobbySettingsDirty = false;
   state.lobbySettingsSaving = false;
   state.lobbyReadySaving = false;
@@ -629,9 +631,10 @@ function stopMultiplayerPolling() {
 }
 
 async function pollMultiplayer() {
-  if (!state.multiplayer.code || !state.multiplayer.playerId) return;
+  if (!state.multiplayer.code || !state.multiplayer.playerId || state.multiplayer.bidPending) return;
   try {
     const snapshot = await api(`/api/lobbies/${state.multiplayer.code}?playerId=${state.multiplayer.playerId}`);
+    if (state.multiplayer.bidPending) return;
     applyMultiplayerSnapshot(snapshot);
   } catch (error) {
     setMultiplayerStatus(error.message);
@@ -903,8 +906,34 @@ async function startMultiplayerAuction() {
 }
 
 async function multiplayerBid(increment) {
-  await api(`/api/lobbies/${state.multiplayer.code}/bid`, { playerId: state.multiplayer.playerId, increment });
-  pollMultiplayer();
+  const allowedIncrements = [1, 5, 10, 25];
+  if (state.multiplayer.bidPending || !allowedIncrements.includes(increment)) return;
+  const user = getUser();
+  if (!state.running || !user) return;
+  if (state.leaderId === user.id) {
+    $("auctionMessage").textContent = "Sei gia in vantaggio su questa asta.";
+    return;
+  }
+  if (state.currentBid + increment > user.credits) {
+    $("auctionMessage").textContent = "Crediti insufficienti per questo rilancio.";
+    return;
+  }
+
+  state.multiplayer.bidPending = true;
+  renderAuction();
+  $("auctionMessage").textContent = `Invio offerta +${increment}...`;
+  try {
+    const snapshot = await api(`/api/lobbies/${state.multiplayer.code}/bid`, {
+      playerId: state.multiplayer.playerId,
+      increment
+    });
+    applyMultiplayerSnapshot(snapshot);
+  } catch (error) {
+    $("auctionMessage").textContent = error.message;
+  } finally {
+    state.multiplayer.bidPending = false;
+    if (state.view === "game" && currentPlayer()) renderAuction();
+  }
 }
 
 async function multiplayerFill() {
@@ -1120,6 +1149,7 @@ function closeAuction() {
 }
 
 function userBid(increment) {
+  if (![1, 5, 10, 25].includes(increment)) return;
   if (state.mode === "multi") {
     multiplayerBid(increment);
     return;
@@ -1366,7 +1396,7 @@ function renderAuction() {
 
   document.querySelectorAll("[data-bid]").forEach((button) => {
     const increment = Number(button.dataset.bid);
-    button.disabled = !state.running || state.currentBid + increment > getUser().credits || state.leaderId === currentUserId();
+    button.disabled = state.multiplayer.bidPending || !state.running || state.currentBid + increment > getUser().credits || state.leaderId === currentUserId();
   });
 }
 
@@ -1542,6 +1572,13 @@ function assignGoal(manager) {
   return `${minute}' ${scorer.name}`;
 }
 
+function updateKeeperStats(manager, conceded) {
+  const keeper = buildLineup(manager).starters.find((slot) => slot.role === "POR" && slot.player)?.player;
+  if (!keeper) return;
+  if (!keeper.stats) keeper.stats = createEmptyPlayerStats();
+  keeper.stats.conceded += conceded;
+}
+
 function playMatch(home, away) {
   const homeStrength = teamStrength(home);
   const awayStrength = teamStrength(away);
@@ -1561,6 +1598,8 @@ function playMatch(home, away) {
 
   updateTeamStats(home, homeGoals, awayGoals);
   updateTeamStats(away, awayGoals, homeGoals);
+  updateKeeperStats(home, awayGoals);
+  updateKeeperStats(away, homeGoals);
   return {
     home: home.name,
     away: away.name,
@@ -1768,16 +1807,46 @@ function renderPlayerStats() {
     .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists || b.overall - a.overall)
     .slice(0, 10);
 
-  $("playerStatsList").innerHTML = playersWithStats
-    .map(
-      (player, index) => `
-        <div class="player-stat-row">
-          <span>${index + 1}. ${player.name}<small>${player.team} - ${player.role} - OVR ${player.overall}</small></span>
-          <strong>${player.stats.goals} G</strong>
-          <strong>${player.stats.assists} A</strong>
+  $("playerStatsList").innerHTML = playersWithStats.length
+    ? playersWithStats
+        .map(
+          (player, index) => `
+            <div class="player-stat-row">
+              <span>${index + 1}. ${player.name}<small>${player.team} - ${player.role} - OVR ${player.overall}</small></span>
+              <strong>${player.stats.goals} G</strong>
+              <strong>${player.stats.assists} A</strong>
+            </div>
+          `
+        )
+        .join("")
+    : `<p class="muted empty-stats-message">Nessun gol o assist registrato.</p>`;
+
+  const user = getUser();
+  if (!user) {
+    $("teamPlayerStatsList").innerHTML = `<p class="muted empty-stats-message">Rosa non disponibile.</p>`;
+    return;
+  }
+
+  const lineup = buildLineup(user);
+  const starterIds = new Set(lineup.starters.filter((slot) => slot.player).map((slot) => slot.player.uid));
+  const roleOrder = ["POR", "DC", "TS", "TD", "MED", "CC", "COC", "AS", "AD", "ATT"];
+  const teamPlayers = [...user.squad].sort((a, b) => {
+    const starterDifference = Number(starterIds.has(b.uid)) - Number(starterIds.has(a.uid));
+    return starterDifference || roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role) || b.overall - a.overall;
+  });
+
+  $("teamPlayerStatsList").innerHTML = teamPlayers
+    .map((player) => {
+      const isKeeper = player.role === "POR";
+      const isStarter = starterIds.has(player.uid);
+      return `
+        <div class="player-stat-row team-player-stat-row ${isKeeper ? "keeper-stat-row" : ""}">
+          <span>${player.starPlayer ? "★ " : ""}${player.name}<small>${isStarter ? "Titolare" : "Panchina"} - ${player.role} - OVR ${player.overall}</small></span>
+          <strong>${isKeeper ? `${player.stats?.conceded || 0} GS` : `${player.stats?.goals || 0} G`}</strong>
+          <strong>${isKeeper ? "PORT" : `${player.stats?.assists || 0} A`}</strong>
         </div>
-      `
-    )
+      `;
+    })
     .join("");
 }
 

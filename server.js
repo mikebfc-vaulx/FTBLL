@@ -250,7 +250,7 @@ function emptyStats() {
 }
 
 function emptyPlayerStats() {
-  return { goals: 0, assists: 0 };
+  return { goals: 0, assists: 0, conceded: 0 };
 }
 
 function publicLobby(lobby, playerId) {
@@ -347,8 +347,10 @@ function closeAuction(lobby) {
 function placeBid(lobby, playerId, increment) {
   updateAuction(lobby);
   if (lobby.status !== "auction") return false;
+  const parsedIncrement = Number(increment);
+  if (![1, 5, 10, 25].includes(parsedIncrement)) return false;
   const manager = lobby.managers.find((item) => item.id === playerId);
-  const amount = lobby.auction.currentBid + clamp(increment, 1, 25);
+  const amount = lobby.auction.currentBid + parsedIncrement;
   if (!manager || lobby.auction.leaderId === playerId || amount > manager.credits) return false;
   lobby.auction.currentBid = amount;
   lobby.auction.leaderId = playerId;
@@ -535,6 +537,8 @@ function playMatch(lobby, home, away) {
   for (let i = 0; i < awayGoals; i += 1) events.push(assignGoal(lobby, away, away.name));
   updateStats(home, homeGoals, awayGoals);
   updateStats(away, awayGoals, homeGoals);
+  updateKeeperStats(home, awayGoals);
+  updateKeeperStats(away, homeGoals);
   return {
     home: home.name,
     away: away.name,
@@ -638,6 +642,14 @@ function assignGoal(lobby, manager, teamName) {
     assister.stats.assists += 1;
   }
   return text;
+}
+
+function updateKeeperStats(manager, conceded) {
+  const formation = manager.formation || "4-3-3";
+  const keeper = buildLineupSlots(manager, formation).find((slot) => slot.role === "POR" && slot.player)?.player;
+  if (!keeper) return;
+  if (!keeper.stats) keeper.stats = emptyPlayerStats();
+  keeper.stats.conceded += conceded;
 }
 
 function sampleShots(strength, tactic = tacticProfiles.balanced) {
@@ -789,7 +801,8 @@ async function handleApi(req, res, parts, url) {
     return json(res, 200, publicLobby(lobby, playerId));
   }
   if (req.method === "POST" && parts[3] === "bid") {
-    placeBid(lobby, playerId, body.increment);
+    const accepted = placeBid(lobby, playerId, body.increment);
+    if (!accepted) return json(res, 409, { error: "Offerta non valida, gia in testa o crediti insufficienti" });
     return json(res, 200, publicLobby(lobby, playerId));
   }
   if (req.method === "POST" && parts[3] === "fill") {
