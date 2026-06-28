@@ -9,9 +9,12 @@
   <body>
     <main class="app-shell">
       <section class="topbar">
-        <div>
-          <p class="eyebrow">Browser manager party game</p>
-          <h1>FTBALL Friends</h1>
+        <div class="brand-lockup">
+          <span class="brand-mark" aria-hidden="true"><i></i></span>
+          <div>
+            <p class="eyebrow">Football auction manager</p>
+            <h1>FTBALL <span>Friends</span></h1>
+          </div>
         </div>
         <button id="resetBtn" class="ghost-button" type="button">Nuova partita</button>
       </section>
@@ -19,21 +22,24 @@
       <section id="homeView" class="view active">
         <div class="hero-panel">
           <div>
-            <p class="eyebrow">Modalita</p>
-            <h2>Scegli come iniziare</h2>
+            <p class="eyebrow">Il mercato apre ora</p>
+            <h2>Costruisci la tua squadra. Sfida tutti.</h2>
             <p class="muted">
-              Costruisci una rosa tramite asta flash. In single player sfidi manager AI; il multiplayer e gia
-              previsto come modalita lobby.
+              Asta flash, gestione della rosa e un'intera stagione da vivere con gli amici o contro l'intelligenza artificiale.
             </p>
           </div>
           <div class="mode-grid">
             <button id="singleModeBtn" class="mode-card" type="button">
+              <span class="mode-index">01</span>
               <span>Single player</span>
-              <strong>Asta contro AI</strong>
+              <strong>Asta contro IA</strong>
+              <small>Inizia subito</small>
             </button>
             <button id="multiModeBtn" class="mode-card" type="button">
+              <span class="mode-index">02</span>
               <span>Multiplayer</span>
               <strong>Lobby amici</strong>
+              <small>Crea o entra</small>
             </button>
           </div>
         </div>
@@ -180,7 +186,7 @@
             <ul class="rules-list">
               <li>Budget iniziale e numero giocatori personalizzabili.</li>
               <li>Ogni giocatore resta 10 secondi in asta.</li>
-              <li>Ogni rilancio negli ultimi secondi riporta il timer a 3.</li>
+              <li>Ogni rilancio negli ultimi secondi riporta il timer a 5.</li>
               <li>Vince chi chiude con rosa piu forte ed equilibrata.</li>
             </ul>
           </div>
