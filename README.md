@@ -4,18 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FTBALL Friends</title>
+    <meta name="theme-color" content="#07110d" />
+    <link rel="icon" href="ftball-logo.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body data-view="home">
     <main class="app-shell">
       <section class="topbar">
         <div class="brand-lockup">
-          <span class="brand-mark" aria-hidden="true"><i></i></span>
+          <img class="brand-logo" src="ftball-logo.svg" alt="" width="48" height="56" />
           <div>
             <p class="eyebrow">Football auction manager</p>
             <h1>FTBALL <span>Friends</span></h1>
           </div>
         </div>
+        <nav class="phase-tabs" aria-label="Fasi della partita">
+          <span data-phase="lobby">Lobby</span>
+          <span data-phase="game">Asta</span>
+          <span data-phase="squad">Rosa</span>
+          <span data-phase="live">Campionato</span>
+          <span data-phase="results">Risultati</span>
+        </nav>
         <button id="resetBtn" class="ghost-button" type="button">Nuova partita</button>
       </section>
 

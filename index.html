@@ -1,20 +1,9 @@
-name: Check
-
-on:
-  push:
-  pull_request:
-
-jobs:
-  node-check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Syntax check
-        run: npm run check
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.DS_Store
+Thumbs.db
+.agents/
