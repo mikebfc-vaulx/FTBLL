@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FTBALL Friends</title>
     <meta name="theme-color" content="#07110d" />
-    <link rel="icon" href="ftball-logo.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="ftball-logo.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css?v=2" />
   </head>
   <body data-view="home">
     <main class="app-shell">
       <section class="topbar">
         <div class="brand-lockup">
-          <img class="brand-logo" src="ftball-logo.svg" alt="" width="48" height="56" />
+          <img class="brand-logo" src="ftball-logo.svg?v=2" alt="" width="48" height="56" />
           <div>
             <p class="eyebrow">Football auction manager</p>
             <h1>FTBALL <span>Friends</span></h1>
@@ -341,7 +341,7 @@
         </div>
       </section>
     </main>
-    <script src="players.js"></script>
-    <script src="app.js"></script>
+    <script src="players.js?v=2"></script>
+    <script src="app.js?v=2"></script>
   </body>
 </html>
