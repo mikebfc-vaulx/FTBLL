@@ -6,8 +6,8 @@
     <title>FTBALL Friends</title>
     <meta name="theme-color" content="#07110d" />
     <link rel="icon" href="ftball-logo.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=3" />
-    <link rel="stylesheet" href="modern-ui.css?v=3" />
+    <link rel="stylesheet" href="styles.css?v=9" />
+    <link rel="stylesheet" href="modern-ui.css?v=9" />
   </head>
   <body data-view="home">
     <main class="app-shell">
@@ -294,6 +294,53 @@
             </div>
           </div>
 
+          <section class="panel tactical-workbench">
+            <div class="tactical-workbench-head">
+              <div>
+                <p class="eyebrow">Piano partita</p>
+                <h2>Tattica avanzata</h2>
+              </div>
+              <div id="tacticalCompatibility" class="compatibility-score">Compatibilita <strong>--</strong></div>
+            </div>
+            <div class="advanced-tactics-grid">
+              <label>Mentalita
+                <select id="mentalitySelect">
+                  <option value="cautious">Prudente</option>
+                  <option value="balanced">Equilibrata</option>
+                  <option value="offensive">Offensiva</option>
+                </select>
+              </label>
+              <label>Costruzione
+                <select id="buildupSelect">
+                  <option value="possession">Possesso</option>
+                  <option value="direct">Verticale</option>
+                  <option value="wide">Fasce</option>
+                </select>
+              </label>
+              <label>Pressing
+                <select id="pressingSelect">
+                  <option value="low">Basso</option>
+                  <option value="medium">Medio</option>
+                  <option value="high">Alto</option>
+                </select>
+              </label>
+              <label>Linea difensiva
+                <select id="defensiveLineSelect">
+                  <option value="low">Bassa</option>
+                  <option value="medium">Media</option>
+                  <option value="high">Alta</option>
+                </select>
+              </label>
+              <label class="captain-control">Capitano
+                <select id="captainSelect"></select>
+              </label>
+            </div>
+            <div class="tactical-insights">
+              <p id="tacticalSummary" class="muted"></p>
+              <p id="captainSummary" class="captain-summary"></p>
+            </div>
+          </section>
+
           <div id="squadStatsBox" class="squad-stats-box"></div>
 
           <div class="lineup-layout">
@@ -350,7 +397,7 @@
         </div>
       </section>
     </main>
-    <script src="players.js?v=5"></script>
-    <script src="app.js?v=5"></script>
+    <script src="players.js?v=9"></script>
+    <script src="app.js?v=9"></script>
   </body>
 </html>

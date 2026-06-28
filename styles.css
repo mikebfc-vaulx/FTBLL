@@ -924,6 +924,19 @@ input {
   line-height: 1.05;
 }
 
+.captain-badge {
+  display: inline-grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #171004;
+  font-size: 0.68rem;
+  vertical-align: 1px;
+}
+
 .pitch-slot small {
   color: #d6e6d3;
 }
@@ -984,6 +997,68 @@ input {
   grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 10px;
   margin: 0;
+}
+
+.tactical-workbench {
+  display: grid;
+  gap: 16px;
+}
+
+.tactical-workbench-head,
+.team-stats-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.compatibility-score {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #eef6ec;
+  color: var(--accent-dark);
+  font-size: 0.8rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.compatibility-score strong {
+  font-size: 1.1rem;
+}
+
+.advanced-tactics-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.captain-control {
+  grid-column: span 1;
+}
+
+.tactical-insights {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.7fr);
+  gap: 10px;
+}
+
+.tactical-insights > * {
+  margin: 0;
+  padding: 11px 12px;
+  border-radius: 7px;
+  background: #eef3ef;
+}
+
+.captain-summary {
+  color: #6d520e;
+  border-left: 3px solid var(--gold);
+  background: #fff7dc !important;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .squad-stat {
@@ -1309,6 +1384,18 @@ input {
 
   .squad-stats-box {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+
+  .advanced-tactics-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .captain-control {
+    grid-column: 1 / -1;
+  }
+
+  .tactical-insights {
+    grid-template-columns: 1fr;
   }
 
   .bench-panel {
@@ -1811,6 +1898,7 @@ button:focus-visible {
   bottom: -190px;
   border: 44px solid rgba(255, 255, 255, 0.035);
   border-radius: 50%;
+  pointer-events: none;
 }
 
 .auction-header {
@@ -2159,6 +2247,19 @@ button:focus-visible {
     min-height: 54px;
     padding: 8px;
     font-size: 0.83rem;
+  }
+
+  .tactical-workbench-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .advanced-tactics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .captain-control {
+    grid-column: auto;
   }
 }
 

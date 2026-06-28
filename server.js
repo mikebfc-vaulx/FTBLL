@@ -25,6 +25,53 @@ const tacticProfiles = {
   wide: { attack: 1.06, defense: 0.98, shots: 1.1, cards: 0.96, penaltyMiss: 1 },
   lowblock: { attack: 0.9, defense: 1.16, shots: 0.78, cards: 1.05, penaltyMiss: 0.92 }
 };
+
+const tacticalPresets = {
+  balanced: { mentality: "balanced", buildup: "possession", pressing: "medium", defensiveLine: "medium" },
+  pressing: { mentality: "offensive", buildup: "possession", pressing: "high", defensiveLine: "high" },
+  counter: { mentality: "cautious", buildup: "direct", pressing: "low", defensiveLine: "low" },
+  possession: { mentality: "balanced", buildup: "possession", pressing: "medium", defensiveLine: "high" },
+  direct: { mentality: "offensive", buildup: "direct", pressing: "medium", defensiveLine: "medium" },
+  wide: { mentality: "balanced", buildup: "wide", pressing: "medium", defensiveLine: "medium" },
+  lowblock: { mentality: "cautious", buildup: "possession", pressing: "low", defensiveLine: "low" }
+};
+
+const tacticalOptions = {
+  mentality: { cautious: { attack: 0.93, defense: 1.07, shots: 0.92, cards: 0.94 }, balanced: { attack: 1, defense: 1, shots: 1, cards: 1 }, offensive: { attack: 1.08, defense: 0.94, shots: 1.1, cards: 1.08 } },
+  buildup: { possession: { attack: 1.01, defense: 1.02, shots: 0.98, cards: 0.9 }, direct: { attack: 1.06, defense: 0.96, shots: 1.08, cards: 1.05 }, wide: { attack: 1.04, defense: 0.99, shots: 1.06, cards: 0.97 } },
+  pressing: { low: { attack: 0.95, defense: 1.04, shots: 0.91, cards: 0.82 }, medium: { attack: 1, defense: 1, shots: 1, cards: 1 }, high: { attack: 1.06, defense: 0.96, shots: 1.1, cards: 1.3 } },
+  defensiveLine: { low: { attack: 0.94, defense: 1.07, shots: 0.94, cards: 0.96 }, medium: { attack: 1, defense: 1, shots: 1, cards: 1 }, high: { attack: 1.04, defense: 0.96, shots: 1.05, cards: 1.07 } }
+};
+
+function normalizeTacticalPlan(plan, preset = "balanced") {
+  const fallback = tacticalPresets[preset] || tacticalPresets.balanced;
+  return {
+    mentality: tacticalOptions.mentality[plan?.mentality] ? plan.mentality : fallback.mentality,
+    buildup: tacticalOptions.buildup[plan?.buildup] ? plan.buildup : fallback.buildup,
+    pressing: tacticalOptions.pressing[plan?.pressing] ? plan.pressing : fallback.pressing,
+    defensiveLine: tacticalOptions.defensiveLine[plan?.defensiveLine] ? plan.defensiveLine : fallback.defensiveLine
+  };
+}
+
+function playerIdentityHash(player) {
+  return [...`${player?.name || "Player"}-${player?.role || ""}`].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 7);
+}
+
+function leadershipForPlayer(player) {
+  const age = Math.max(18, Math.min(38, Number(player?.age) || 24));
+  const roleBonus = { POR: 8, DC: 8, MED: 7, CC: 6, COC: 4, ATT: 3, TS: 3, TD: 3, AS: 2, AD: 2 }[player?.role] || 0;
+  const personality = playerIdentityHash(player) % 17;
+  const experience = Math.min(22, (age - 18) * 1.15);
+  const quality = Math.max(0, Math.min(5, ((Number(player?.overall) || 70) - 70) * 0.17));
+  return Math.round(Math.max(50, Math.min(98, 47 + experience + roleBonus + personality + quality)));
+}
+
+function captainStyleForPlayer(player) {
+  const hash = playerIdentityHash(player);
+  if (["POR", "DC"].includes(player.role)) return hash % 3 ? "commander" : "calm";
+  if (["MED", "CC", "COC"].includes(player.role)) return hash % 3 ? "strategist" : "calm";
+  return hash % 2 ? "motivator" : "driver";
+}
 const formationNeeds = {
   "4-3-3": ["POR", "DC", "DC", "TS", "TD", "MED", "CC", "CC", "AS", "AD", "ATT"],
   "4-4-2": ["POR", "DC", "DC", "TS", "TD", "CC", "CC", "AS", "AD", "ATT", "ATT"],
@@ -34,16 +81,16 @@ const formationNeeds = {
 };
 
 const roleWeights = {
-  POR: { goals: 0.02, assists: 0.02 },
-  DC: { goals: 0.2, assists: 0.12 },
-  TS: { goals: 0.18, assists: 0.38 },
-  TD: { goals: 0.18, assists: 0.38 },
-  MED: { goals: 0.42, assists: 0.55 },
-  CC: { goals: 0.62, assists: 0.68 },
-  COC: { goals: 0.92, assists: 1.02 },
-  AS: { goals: 1.05, assists: 0.88 },
-  AD: { goals: 1.05, assists: 0.88 },
-  ATT: { goals: 1.35, assists: 0.46 }
+  POR: { goals: 0.001, assists: 0.01 },
+  DC: { goals: 0.07, assists: 0.1 },
+  TS: { goals: 0.1, assists: 0.46 },
+  TD: { goals: 0.1, assists: 0.46 },
+  MED: { goals: 0.28, assists: 0.56 },
+  CC: { goals: 0.48, assists: 0.72 },
+  COC: { goals: 1, assists: 1.08 },
+  AS: { goals: 1.15, assists: 0.92 },
+  AD: { goals: 1.15, assists: 0.92 },
+  ATT: { goals: 1.65, assists: 0.5 }
 };
 
 const generatedNames = {
@@ -164,6 +211,15 @@ function repartoForRole(role) {
   return "attack";
 }
 
+function starBonusesByReparto(starters) {
+  const bonuses = { attack: 0, midfield: 0, defense: 0 };
+  starters.forEach((slot) => {
+    if (!slot.player?.starPlayer) return;
+    bonuses[repartoForRole(slot.role)] += Number(slot.player.starBonus) || starRepartoBonus;
+  });
+  return bonuses;
+}
+
 function buildBalancedAuctionPool(sourcePlayers, rounds, formations = []) {
   const target = Math.min(rounds, sourcePlayers.length);
   const guidedTarget = Math.max(0, Math.min(target, Math.round(target * 0.7)));
@@ -236,6 +292,8 @@ function newPlayer(name, credits, formation, isHost = false, color = colors[0]) 
     lineup: {},
     formation,
     tactic: "balanced",
+    tacticalPlan: normalizeTacticalPlan(null, "balanced"),
+    captainId: null,
     ready: false,
     isHost,
     isBot: false,
@@ -434,12 +492,17 @@ function makeGenerated(role) {
   };
 }
 
-function markReady(lobby, playerId, tactic, lineup = null) {
+function markReady(lobby, playerId, tactic, tacticalPlan, captainId, lineup = null) {
   const manager = lobby.managers.find((item) => item.id === playerId);
   if (!manager) return;
   fillVacancies(lobby, playerId);
   manager.tactic = tactic || "balanced";
+  manager.tacticalPlan = normalizeTacticalPlan(tacticalPlan, manager.tactic);
   manager.lineup = lineup && typeof lineup === "object" ? lineup : manager.lineup || {};
+  const starters = buildLineupSlots(manager, manager.formation || lobby.settings.formation).filter((slot) => slot.player);
+  manager.captainId = starters.some((slot) => (slot.player.uid || slot.player.name) === captainId)
+    ? captainId
+    : resolveCaptain(manager, starters)?.player?.uid || resolveCaptain(manager, starters)?.player?.name || null;
   manager.ready = true;
 }
 
@@ -524,10 +587,12 @@ function makeBotPlayer(role, difficulty = "normal") {
 function playMatch(lobby, home, away) {
   const homeStrength = teamStrength(lobby, home);
   const awayStrength = teamStrength(lobby, away);
-  const homeTactic = tacticProfiles[home.tactic] || tacticProfiles.balanced;
-  const awayTactic = tacticProfiles[away.tactic] || tacticProfiles.balanced;
-  const homeGap = homeStrength.attack - awayStrength.defense;
-  const awayGap = awayStrength.attack - homeStrength.defense;
+  const homeTactic = homeStrength.tactic;
+  const awayTactic = awayStrength.tactic;
+  const homeMatchup = tacticalMatchup(homeTactic.plan, awayTactic.plan);
+  const awayMatchup = tacticalMatchup(awayTactic.plan, homeTactic.plan);
+  const homeGap = homeStrength.attack * homeMatchup - awayStrength.defense;
+  const awayGap = awayStrength.attack * awayMatchup - homeStrength.defense;
   const homeTotalGap = homeGap + (homeStrength.midfield - awayStrength.midfield) * 0.16;
   const awayTotalGap = awayGap + (awayStrength.midfield - homeStrength.midfield) * 0.16;
   const homeGoals = sampleGoals(clampExpectedGoals(1.05 + homeTotalGap / 38 + 0.25), homeTotalGap);
@@ -552,19 +617,69 @@ function playMatch(lobby, home, away) {
   };
 }
 
+function resolveCaptain(manager, starters) {
+  const players = starters.map((slot) => slot.player).filter(Boolean);
+  const selected = players.find((player) => (player.uid || player.name) === manager.captainId);
+  const captain = selected || [...players].sort((a, b) => leadershipForPlayer(b) - leadershipForPlayer(a))[0];
+  return captain ? { player: captain, leadership: leadershipForPlayer(captain), style: captainStyleForPlayer(captain) } : null;
+}
+
+function tacticalCompatibility(manager, starters, captain) {
+  const plan = normalizeTacticalPlan(manager.tacticalPlan, manager.tactic);
+  let roles = ["MED", "CC", "COC"];
+  if (plan.buildup === "direct") roles = ["ATT", "AS", "AD", "COC"];
+  if (plan.buildup === "wide") roles = ["AS", "AD", "TS", "TD"];
+  const average = (items, fallback = 65) => items.length ? items.reduce((sum, slot) => sum + effectiveOverall(slot.player, slot.role), 0) / items.length : fallback;
+  const buildup = average(starters.filter((slot) => roles.includes(slot.role)));
+  const press = average(starters.filter((slot) => ["MED", "CC", "AS", "AD", "ATT"].includes(slot.role)), 76);
+  const line = average(starters.filter((slot) => ["POR", "DC", "TS", "TD"].includes(slot.role)), 76);
+  let score = buildup * 0.5 + (plan.pressing === "high" ? press : 76) * 0.25 + (plan.defensiveLine === "high" ? line : 76) * 0.25;
+  if (captain?.style === "strategist") score += 4;
+  return Math.round(Math.max(50, Math.min(100, score)));
+}
+
+function managerTacticProfile(manager, starters) {
+  const plan = normalizeTacticalPlan(manager.tacticalPlan, manager.tactic);
+  const profile = { attack: 1, defense: 1, shots: 1, cards: 1, penaltyMiss: 1 };
+  Object.entries(plan).forEach(([group, value]) => {
+    const option = tacticalOptions[group]?.[value];
+    if (option) ["attack", "defense", "shots", "cards"].forEach((key) => { profile[key] *= option[key]; });
+  });
+  const captain = resolveCaptain(manager, starters);
+  const compatibility = tacticalCompatibility(manager, starters, captain);
+  const execution = 0.97 + (compatibility - 70) * 0.0015;
+  const leadershipBoost = captain ? 1 + Math.max(0, captain.leadership - 60) * 0.0006 : 1;
+  profile.attack *= execution * leadershipBoost;
+  profile.defense *= execution * leadershipBoost;
+  if (captain?.style === "commander") profile.defense *= 1.015;
+  if (["motivator", "driver"].includes(captain?.style)) profile.attack *= captain.style === "motivator" ? 1.015 : 1.012;
+  if (captain?.style === "calm") {
+    profile.cards *= 0.84;
+    profile.defense *= 1.008;
+  }
+  profile.attack = Math.max(0.94, Math.min(1.08, profile.attack));
+  profile.defense = Math.max(0.94, Math.min(1.08, profile.defense));
+  profile.shots = Math.max(0.82, Math.min(1.18, profile.shots));
+  profile.cards = Math.max(0.65, Math.min(1.45, profile.cards));
+  return { ...profile, plan, compatibility, captain };
+}
+
+function tacticalMatchup(attackerPlan, defenderPlan) {
+  let modifier = 1;
+  if (attackerPlan.buildup === "direct" && defenderPlan.defensiveLine === "high") modifier += 0.04;
+  if (attackerPlan.pressing === "high" && defenderPlan.buildup === "possession") modifier += 0.03;
+  if (attackerPlan.buildup === "possession" && defenderPlan.pressing === "high") modifier -= 0.03;
+  if (attackerPlan.buildup === "wide" && defenderPlan.defensiveLine === "low") modifier -= 0.015;
+  return Math.max(0.94, Math.min(1.06, modifier));
+}
+
 function teamStrength(lobby, manager) {
   const formation = manager.formation || lobby.settings.formation;
   const lineup = buildLineupSlots(manager, formation);
   const starters = lineup.filter((slot) => slot.player);
   if (!starters.length) return { attack: 50, midfield: 50, defense: 50, keeper: 50, base: 50 };
-  const repartoBonuses = { attack: 0, midfield: 0, defense: 0 };
-  starters.forEach((slot) => {
-    if (slot.player.starPlayer) repartoBonuses[repartoForRole(slot.role)] += slot.player.starBonus || starRepartoBonus;
-  });
-  const ratedSlots = starters.map((slot) => {
-    const reparto = repartoForRole(slot.role);
-    return { ...slot, effective: effectiveOverall(slot.player, slot.role) * (1 + repartoBonuses[reparto]) };
-  });
+  const repartoBonuses = starBonusesByReparto(starters);
+  const ratedSlots = starters.map((slot) => ({ ...slot, effective: effectiveOverall(slot.player, slot.role) }));
   const values = ratedSlots.map((slot) => slot.effective);
   const avg = values.reduce((sum, value) => sum + value, 0) / starters.length;
   const used = new Set(starters.map((slot) => slot.player.uid || slot.player.name));
@@ -581,14 +696,17 @@ function teamStrength(lobby, manager) {
   const defenseLine = averageOr(defenseSlots, avg);
   const keeper = keeperSlot?.effective || defenseLine;
   const individualPeak = Math.max(...attackSlots.map((slot) => slot.effective), avg);
-  const tactic = tacticProfiles[manager.tactic] || tacticProfiles.balanced;
+  const tactic = managerTacticProfile(manager, starters);
   const base = avg * 0.76 + depth * 0.09 + individualPeak * 0.15;
+  const attackStrength = attackLine * 0.62 + midfieldLine * 0.23 + individualPeak * 0.15;
+  const defenseStrength = defenseLine * 0.62 + keeper * 0.25 + midfieldLine * 0.13;
   return {
-    attack: (attackLine * 0.62 + midfieldLine * 0.23 + individualPeak * 0.15) * tactic.attack,
-    midfield: midfieldLine,
-    defense: (defenseLine * 0.62 + keeper * 0.25 + midfieldLine * 0.13) * tactic.defense,
-    keeper,
-    base
+    attack: attackStrength * (1 + repartoBonuses.attack) * tactic.attack,
+    midfield: midfieldLine * (1 + repartoBonuses.midfield),
+    defense: defenseStrength * (1 + repartoBonuses.defense) * tactic.defense,
+    keeper: keeper * (1 + repartoBonuses.defense),
+    base,
+    tactic
   };
 }
 
@@ -615,7 +733,7 @@ function clampExpectedGoals(value) {
 }
 
 function sampleGoals(expected, strengthGap = 0) {
-  const limit = strengthGap > 22 ? 5 : strengthGap > 12 ? 4 : 3;
+  const limit = strengthGap > 25 ? 5 : strengthGap > 16 ? 4 : 3;
   const lambda = Math.min(expected, limit === 3 ? 2.05 : 2.45);
   let goals = 0;
   let probability = Math.exp(-lambda);
@@ -668,8 +786,17 @@ function weightedPick(items, type) {
     const role = item.role || player.role;
     const effective = item.player ? effectiveOverall(player, role) : player.overall;
     const roleWeight = roleWeights[role]?.[type] || 0.4;
-    const ratingFactor = Math.max(0.25, Math.pow(effective / 82, type === "goals" ? 3.1 : 2.4));
-    return { player, weight: Math.max(0.02, roleWeight * ratingFactor) };
+    const normalizedRating = Math.max(0, (effective - 58) / 32);
+    const ratingFactor = type === "goals"
+      ? 0.08 + Math.pow(normalizedRating, 3.4) * (effective >= 85 ? 1 + (effective - 84) * 0.07 : 1)
+      : 0.14 + Math.pow(normalizedRating, 2.7) * (effective >= 86 ? 1 + (effective - 85) * 0.035 : 1);
+    const currentTotal = type === "goals" ? player.stats?.goals || 0 : player.stats?.assists || 0;
+    const softTarget = type === "goals"
+      ? 4 + Math.max(0, effective - 68) * 0.8
+      : 5 + Math.max(0, effective - 68) * 0.65;
+    const excess = Math.max(0, currentTotal - softTarget);
+    const consistencyFactor = 1 / (1 + excess * excess * (type === "goals" ? 0.12 : 0.08));
+    return { player, weight: Math.max(0.005, roleWeight * ratingFactor * consistencyFactor) };
   });
   let cursor = Math.random() * weighted.reduce((sum, item) => sum + item.weight, 0);
   for (const item of weighted) {
@@ -758,6 +885,8 @@ async function handleApi(req, res, parts, url) {
       manager.squad = [];
       manager.lineup = {};
       manager.tactic = "balanced";
+      manager.tacticalPlan = normalizeTacticalPlan(null, "balanced");
+      manager.captainId = null;
       manager.credits = lobby.settings.credits;
     });
     lobby.skipVotes = [];
@@ -812,7 +941,7 @@ async function handleApi(req, res, parts, url) {
   }
   if (req.method === "POST" && parts[3] === "ready") {
     if (lobby.status !== "squad") return json(res, 400, { error: "Asta non ancora terminata" });
-    markReady(lobby, playerId, body.tactic, body.lineup);
+    markReady(lobby, playerId, body.tactic, body.tacticalPlan, body.captainId, body.lineup);
     return json(res, 200, publicLobby(lobby, playerId));
   }
   if (req.method === "POST" && parts[3] === "lineup") {
@@ -821,6 +950,8 @@ async function handleApi(req, res, parts, url) {
     if (!manager) return json(res, 400, { error: "Manager non valido" });
     manager.lineup = body.lineup && typeof body.lineup === "object" ? body.lineup : manager.lineup || {};
     if (body.tactic) manager.tactic = body.tactic;
+    manager.tacticalPlan = normalizeTacticalPlan(body.tacticalPlan, manager.tactic);
+    if (body.captainId) manager.captainId = body.captainId;
     manager.ready = false;
     return json(res, 200, publicLobby(lobby, playerId));
   }
@@ -884,9 +1015,25 @@ const server = http.createServer((req, res) => {
 
 setInterval(cleanupLobbies, CLEANUP_INTERVAL_MS).unref();
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`FTBALL Friends multiplayer server: http://0.0.0.0:${PORT}`);
-  console.log(`Temporary lobby TTL: ${Math.round(LOBBY_TTL_MS / 60000)} minutes`);
-});
+if (require.main === module) {
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`FTBALL Friends multiplayer server: http://0.0.0.0:${PORT}`);
+    console.log(`Temporary lobby TTL: ${Math.round(LOBBY_TTL_MS / 60000)} minutes`);
+  });
+}
+
+module.exports = {
+  repartoForRole,
+  starBonusesByReparto,
+  teamStrength,
+  managerTacticProfile,
+  tacticalMatchup,
+  leadershipForPlayer,
+  captainStyleForPlayer,
+  playMatch,
+  buildCalendarRounds,
+  emptyStats,
+  emptyPlayerStats
+};
 
 

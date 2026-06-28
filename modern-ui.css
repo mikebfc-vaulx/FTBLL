@@ -478,6 +478,28 @@ select option {
   backdrop-filter: blur(12px);
 }
 
+.tactical-workbench {
+  border-color: #33463a;
+  background: #0c1511;
+}
+
+.compatibility-score {
+  color: var(--ui-green);
+  border-color: #3c552f;
+  background: #172416;
+}
+
+.tactical-insights > * {
+  color: #9fb0a7;
+  background: #09110d;
+}
+
+.captain-summary {
+  color: #f2d88e;
+  border-left-color: var(--ui-gold);
+  background: #241d0e !important;
+}
+
 .squad-stats-box {
   border-color: var(--ui-line);
   background: #0b130f;
