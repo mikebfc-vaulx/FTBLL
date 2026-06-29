@@ -321,6 +321,7 @@ function publicLobby(lobby, playerId) {
   }
   const snapshot = {
     code: lobby.code,
+    serverNow: now(),
     status: lobby.status,
     settings: lobby.settings,
     playerId,
@@ -506,6 +507,13 @@ function markReady(lobby, playerId, tactic, tacticalPlan, captainId, lineup = nu
   manager.ready = true;
 }
 
+function comparePlayersByScoring(a, b) {
+  const goalDifference = (b.stats?.goals || 0) - (a.stats?.goals || 0);
+  const assistDifference = (b.stats?.assists || 0) - (a.stats?.assists || 0);
+  const keeperDifference = Number(a.role === "POR") - Number(b.role === "POR");
+  return goalDifference || assistDifference || keeperDifference || b.overall - a.overall || a.name.localeCompare(b.name);
+}
+
 function simulate(lobby) {
   addSimulationBots(lobby);
   lobby.managers.forEach((manager) => {
@@ -528,7 +536,7 @@ function simulate(lobby) {
   });
   const playerStats = lobby.managers
     .flatMap((manager) => manager.squad.map((player) => ({ ...player, team: manager.name })))
-    .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists || b.overall - a.overall)
+    .sort(comparePlayersByScoring)
     .slice(0, 10);
   lobby.results = { standings, playerStats, rounds, skipResolved: false };
   lobby.status = "results";
@@ -1030,6 +1038,7 @@ module.exports = {
   tacticalMatchup,
   leadershipForPlayer,
   captainStyleForPlayer,
+  comparePlayersByScoring,
   playMatch,
   buildCalendarRounds,
   emptyStats,

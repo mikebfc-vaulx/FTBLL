@@ -173,7 +173,8 @@ const state = {
     hostId: null,
     isHost: false,
     pollId: null,
-    bidPending: false
+    bidPending: false,
+    serverClockOffsetMs: 0
   }
 };
 
@@ -618,6 +619,7 @@ function clearMultiplayerSession() {
   state.multiplayer.hostId = null;
   state.multiplayer.isHost = false;
   state.multiplayer.bidPending = false;
+  state.multiplayer.serverClockOffsetMs = 0;
   state.lobbySettingsDirty = false;
   state.lobbySettingsSaving = false;
   state.lobbyReadySaving = false;
@@ -725,7 +727,9 @@ function stopMultiplayerPolling() {
 async function pollMultiplayer() {
   if (!state.multiplayer.code || !state.multiplayer.playerId || state.multiplayer.bidPending) return;
   try {
+    const requestStartedAt = Date.now();
     const snapshot = await api(`/api/lobbies/${state.multiplayer.code}?playerId=${state.multiplayer.playerId}`);
+    snapshot.clientClockReference = (requestStartedAt + Date.now()) / 2;
     if (state.multiplayer.bidPending) return;
     applyMultiplayerSnapshot(snapshot);
   } catch (error) {
@@ -737,6 +741,10 @@ async function pollMultiplayer() {
 
 function applyMultiplayerSnapshot(snapshot) {
   state.mode = "multi";
+  if (Number.isFinite(snapshot.serverNow)) {
+    const localReference = snapshot.clientClockReference || Date.now();
+    state.multiplayer.serverClockOffsetMs = localReference - snapshot.serverNow;
+  }
   state.multiplayer.hostId = snapshot.hostId;
   state.multiplayer.isHost = snapshot.hostId === state.multiplayer.playerId;
   const currentManager = snapshot.managers.find((manager) => manager.id === state.multiplayer.playerId);
@@ -768,9 +776,10 @@ function applyMultiplayerSnapshot(snapshot) {
   state.calledCount = snapshot.auction?.index || 0;
   state.currentBid = snapshot.auction?.currentBid || 0;
   state.leaderId = snapshot.auction?.leaderId || null;
-  state.timeLeft = snapshot.auction?.endsAt ? Math.max(0, (snapshot.auction.endsAt - Date.now()) / 1000) : 0;
+  const synchronizedServerNow = Date.now() - state.multiplayer.serverClockOffsetMs;
+  state.timeLeft = snapshot.auction?.endsAt ? Math.max(0, (snapshot.auction.endsAt - synchronizedServerNow) / 1000) : 0;
   if (snapshot.status === "countdown") {
-    state.timeLeft = Math.max(0, (snapshot.auction.countdownEndsAt - Date.now()) / 1000);
+    state.timeLeft = Math.max(0, (snapshot.auction.countdownEndsAt - synchronizedServerNow) / 1000);
   }
   state.running = snapshot.status === "auction";
   $("auctionLog").innerHTML = (snapshot.log || []).map((item) => `<div>${item}</div>`).join("");
@@ -952,7 +961,7 @@ function setLobbyInputValue(id, value) {
 }
 
 function displaySeconds(value) {
-  return Math.max(0, Math.floor(Number(value) || 0));
+  return Math.max(0, Math.ceil(Number(value) || 0));
 }
 
 function markLobbySettingsDirty() {
@@ -2055,11 +2064,18 @@ function renderFinalCalendar() {
   $("standingsList").insertAdjacentElement("afterend", calendar);
 }
 
+function comparePlayersByScoring(a, b) {
+  const goalDifference = (b.stats?.goals || 0) - (a.stats?.goals || 0);
+  const assistDifference = (b.stats?.assists || 0) - (a.stats?.assists || 0);
+  const keeperDifference = Number(a.role === "POR") - Number(b.role === "POR");
+  return goalDifference || assistDifference || keeperDifference || b.overall - a.overall || a.name.localeCompare(b.name);
+}
+
 function renderPlayerStats() {
   const playersWithStats = state.managers
     .flatMap((manager) => manager.squad.map((player) => ({ ...player, team: manager.name })))
     .filter((player) => player.stats && (player.stats.goals > 0 || player.stats.assists > 0))
-    .sort((a, b) => b.stats.goals - a.stats.goals || b.stats.assists - a.stats.assists || b.overall - a.overall)
+    .sort(comparePlayersByScoring)
     .slice(0, 10);
 
   $("playerStatsList").innerHTML = playersWithStats.length
@@ -2084,11 +2100,7 @@ function renderPlayerStats() {
 
   const lineup = buildLineup(user);
   const starterIds = new Set(lineup.starters.filter((slot) => slot.player).map((slot) => slot.player.uid));
-  const roleOrder = ["POR", "DC", "TS", "TD", "MED", "CC", "COC", "AS", "AD", "ATT"];
-  const teamPlayers = [...user.squad].sort((a, b) => {
-    const starterDifference = Number(starterIds.has(b.uid)) - Number(starterIds.has(a.uid));
-    return starterDifference || roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role) || b.overall - a.overall;
-  });
+  const teamPlayers = [...user.squad].sort(comparePlayersByScoring);
 
   $("teamPlayerStatsList").innerHTML = teamPlayers
     .map((player) => {
