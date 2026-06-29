@@ -1,139 +1,409 @@
-﻿const playerDatabase = (() => {
-  const basePlayers = [
-    { name: "Kylian Mbappe", role: "ATT", nation: "Francia", age: 27, overall: 94 },
-    { name: "Erling Haaland", role: "ATT", nation: "Norvegia", age: 25, overall: 93 },
-    { name: "Jude Bellingham", role: "COC", nation: "Inghilterra", age: 23, overall: 91 },
-    { name: "Vinicius Junior", role: "AS", nation: "Brasile", age: 25, overall: 91 },
-    { name: "Rodri", role: "MED", nation: "Spagna", age: 30, overall: 90 },
-    { name: "Kevin De Bruyne", role: "CC", nation: "Belgio", age: 35, overall: 89 },
-    { name: "Lautaro Martinez", role: "ATT", nation: "Argentina", age: 28, overall: 89 },
-    { name: "Bukayo Saka", role: "AD", nation: "Inghilterra", age: 24, overall: 88 },
-    { name: "Federico Valverde", role: "CC", nation: "Uruguay", age: 27, overall: 88 },
-    { name: "Ruben Dias", role: "DC", nation: "Portogallo", age: 29, overall: 88 },
-    { name: "Gianluigi Donnarumma", role: "POR", nation: "Italia", age: 27, overall: 87 },
-    { name: "Alessandro Bastoni", role: "DC", nation: "Italia", age: 27, overall: 86 },
-    { name: "Achraf Hakimi", role: "TD", nation: "Marocco", age: 27, overall: 86 },
-    { name: "Theo Hernandez", role: "TS", nation: "Francia", age: 28, overall: 86 },
-    { name: "Florian Wirtz", role: "COC", nation: "Germania", age: 23, overall: 86 },
-    { name: "Victor Osimhen", role: "ATT", nation: "Nigeria", age: 27, overall: 86 },
-    { name: "Rafael Leao", role: "AS", nation: "Portogallo", age: 27, overall: 85 },
-    { name: "Nicolo Barella", role: "CC", nation: "Italia", age: 29, overall: 85 },
-    { name: "Mike Maignan", role: "POR", nation: "Francia", age: 30, overall: 85 },
-    { name: "Declan Rice", role: "MED", nation: "Inghilterra", age: 27, overall: 85 },
-    { name: "William Saliba", role: "DC", nation: "Francia", age: 25, overall: 85 },
-    { name: "Khvicha Kvaratskhelia", role: "AS", nation: "Georgia", age: 25, overall: 84 },
-    { name: "Jamal Musiala", role: "COC", nation: "Germania", age: 23, overall: 84 },
-    { name: "Trent Alexander-Arnold", role: "TD", nation: "Inghilterra", age: 27, overall: 84 },
-    { name: "Pedri", role: "CC", nation: "Spagna", age: 23, overall: 84 },
-    { name: "Dusan Vlahovic", role: "ATT", nation: "Serbia", age: 26, overall: 83 },
-    { name: "Frenkie de Jong", role: "CC", nation: "Paesi Bassi", age: 29, overall: 83 },
-    { name: "Luis Diaz", role: "AS", nation: "Colombia", age: 29, overall: 83 },
-    { name: "Joao Cancelo", role: "TD", nation: "Portogallo", age: 32, overall: 83 },
-    { name: "Kim Min-jae", role: "DC", nation: "Corea del Sud", age: 29, overall: 83 },
-    { name: "Sergej Milinkovic-Savic", role: "CC", nation: "Serbia", age: 31, overall: 82 },
-    { name: "Sandro Tonali", role: "MED", nation: "Italia", age: 26, overall: 82 },
-    { name: "Gabriel Martinelli", role: "AS", nation: "Brasile", age: 25, overall: 82 },
-    { name: "Diogo Jota", role: "ATT", nation: "Portogallo", age: 29, overall: 82 },
-    { name: "Ousmane Diomande", role: "DC", nation: "Costa d'Avorio", age: 22, overall: 80 },
-    { name: "Giorgio Scalvini", role: "DC", nation: "Italia", age: 22, overall: 80 },
-    { name: "Takefusa Kubo", role: "AD", nation: "Giappone", age: 25, overall: 80 },
-    { name: "Benjamin Sesko", role: "ATT", nation: "Slovenia", age: 23, overall: 79 },
-    { name: "Destiny Udogie", role: "TS", nation: "Italia", age: 23, overall: 79 },
-    { name: "Manuel Ugarte", role: "MED", nation: "Uruguay", age: 25, overall: 79 },
-    { name: "Ivan Provedel", role: "POR", nation: "Italia", age: 32, overall: 78 },
-    { name: "Riccardo Orsolini", role: "AD", nation: "Italia", age: 29, overall: 78 },
-    { name: "Evan Ferguson", role: "ATT", nation: "Irlanda", age: 21, overall: 77 },
-    { name: "Morten Hjulmand", role: "MED", nation: "Danimarca", age: 27, overall: 77 },
-    { name: "Piero Hincapie", role: "DC", nation: "Ecuador", age: 24, overall: 77 },
-    { name: "Milos Kerkez", role: "TS", nation: "Ungheria", age: 22, overall: 76 },
-    { name: "Yunus Musah", role: "CC", nation: "Stati Uniti", age: 23, overall: 76 },
-    { name: "Johan Bakayoko", role: "AD", nation: "Belgio", age: 23, overall: 76 }
-  ];
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FTBALL Friends</title>
+    <meta name="theme-color" content="#07110d" />
+    <link rel="icon" href="ftball-logo.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css?v=12" />
+    <link rel="stylesheet" href="modern-ui.css?v=12" />
+  </head>
+  <body data-view="home">
+    <main class="app-shell">
+      <section class="topbar">
+        <div class="brand-lockup">
+          <img class="brand-logo" src="ftball-logo.svg?v=2" alt="" width="48" height="56" />
+          <div>
+            <p class="eyebrow">Football auction manager</p>
+            <h1>FTBALL <span>Friends</span></h1>
+          </div>
+        </div>
+        <nav class="phase-tabs" aria-label="Fasi della partita">
+          <span data-phase="lobby">Lobby</span>
+          <span data-phase="game">Asta</span>
+          <span data-phase="squad">Rosa</span>
+          <span data-phase="live">Campionato</span>
+          <span data-phase="results">Risultati</span>
+        </nav>
+        <button id="resetBtn" class="ghost-button" type="button">Nuova partita</button>
+      </section>
 
-  const realPlayerRows = [
-    "Alisson Becker|POR|Brasile|33|89", "Thibaut Courtois|POR|Belgio|34|89", "Jan Oblak|POR|Slovenia|33|88", "Marc-Andre ter Stegen|POR|Germania|34|88", "Ederson|POR|Brasile|32|88",
-    "Manuel Neuer|POR|Germania|40|87", "Yann Sommer|POR|Svizzera|37|86", "Gregor Kobel|POR|Svizzera|28|86", "Emiliano Martinez|POR|Argentina|33|86", "Unai Simon|POR|Spagna|29|84",
-    "David Raya|POR|Spagna|30|84", "Wojciech Szczesny|POR|Polonia|36|84", "Jordan Pickford|POR|Inghilterra|32|83", "Aaron Ramsdale|POR|Inghilterra|28|81", "Andre Onana|POR|Camerun|30|82",
-    "Guglielmo Vicario|POR|Italia|29|82", "Alex Meret|POR|Italia|29|81", "Diogo Costa|POR|Portogallo|26|84", "Giorgi Mamardashvili|POR|Georgia|25|82", "Andriy Lunin|POR|Ucraina|27|80",
-    "Anatoliy Trubin|POR|Ucraina|24|80", "Brice Samba|POR|Francia|32|81", "Dominik Livakovic|POR|Croazia|31|80", "Koen Casteels|POR|Belgio|34|80", "Keylor Navas|POR|Costa Rica|39|80",
-    "Rui Patricio|POR|Portogallo|38|78", "Fernando Muslera|POR|Uruguay|40|78", "Guillermo Ochoa|POR|Messico|41|77", "Stefan Ortega|POR|Germania|33|79", "Kepa Arrizabalaga|POR|Spagna|31|80",
-    "Alex Remiro|POR|Spagna|31|81", "Marco Carnesecchi|POR|Italia|26|79", "Wladimiro Falcone|POR|Italia|31|77", "Lukasz Skorupski|POR|Polonia|35|78", "Matz Sels|POR|Belgio|34|78",
-    "Bart Verbruggen|POR|Paesi Bassi|23|78", "Gavin Bazunu|POR|Irlanda|24|75", "Illan Meslier|POR|Francia|26|76", "Dean Henderson|POR|Inghilterra|29|79", "Nick Pope|POR|Inghilterra|34|82",
-    "Alphonse Areola|POR|Francia|33|80", "Neto|POR|Brasile|36|79", "Jose Sa|POR|Portogallo|33|80", "Yassine Bounou|POR|Marocco|35|84", "Geronimo Rulli|POR|Argentina|34|80",
-    "Virgil van Dijk|DC|Paesi Bassi|34|89", "Ronald Araujo|DC|Uruguay|27|86", "Eder Militao|DC|Brasile|28|86", "Marquinhos|DC|Brasile|32|86", "Gabriel Magalhaes|DC|Brasile|28|86",
-    "Ibrahima Konate|DC|Francia|27|84", "Dayot Upamecano|DC|Francia|27|84", "Matthijs de Ligt|DC|Paesi Bassi|26|84", "Josko Gvardiol|DC|Croazia|24|85", "John Stones|DC|Inghilterra|32|84",
-    "Manuel Akanji|DC|Svizzera|30|83", "Aymeric Laporte|DC|Spagna|32|84", "David Alaba|DC|Austria|34|85", "Antonio Rudiger|DC|Germania|33|86", "Mats Hummels|DC|Germania|37|83",
-    "Nico Schlotterbeck|DC|Germania|26|83", "Jonathan Tah|DC|Germania|30|83", "Jules Kounde|DC|Francia|27|85", "Pau Torres|DC|Spagna|29|82", "Sven Botman|DC|Paesi Bassi|26|82",
-    "Marc Guehi|DC|Inghilterra|25|81", "Levi Colwill|DC|Inghilterra|23|80", "Fikayo Tomori|DC|Inghilterra|28|82", "Bremer|DC|Brasile|29|85", "Milan Skriniar|DC|Slovacchia|31|84",
-    "Stefan de Vrij|DC|Paesi Bassi|34|82", "Francesco Acerbi|DC|Italia|38|82", "Gianluca Mancini|DC|Italia|30|81", "Alessandro Buongiorno|DC|Italia|27|81", "Federico Gatti|DC|Italia|28|79",
-    "Pierre Kalulu|DC|Francia|26|79", "Jean-Clair Todibo|DC|Francia|26|81", "Leny Yoro|DC|Francia|20|78", "Axel Disasi|DC|Francia|28|80", "Benoit Badiashile|DC|Francia|25|79",
-    "Cristian Romero|DC|Argentina|28|84", "Lisandro Martinez|DC|Argentina|28|83", "Nicolas Otamendi|DC|Argentina|38|81", "Facundo Medina|DC|Argentina|27|80", "Marcos Senesi|DC|Argentina|29|79",
-    "Illya Zabarnyi|DC|Ucraina|23|80", "Kevin Danso|DC|Austria|27|80", "David Hancko|DC|Slovacchia|28|81", "Mario Hermoso|DC|Spagna|31|80", "Jose Maria Gimenez|DC|Uruguay|31|83",
-    "Goncalo Inacio|DC|Portogallo|24|82", "Antonio Silva|DC|Portogallo|22|80", "Morato|DC|Brasile|25|78", "Nino|DC|Brasile|29|78", "Murillo|DC|Brasile|23|80",
-    "Maxence Lacroix|DC|Francia|26|78", "Oumar Solet|DC|Francia|26|78", "Evan Ndicka|DC|Costa d'Avorio|26|80", "Edmond Tapsoba|DC|Burkina Faso|27|82", "Odilon Kossounou|DC|Costa d'Avorio|25|79",
-    "Mohamed Simakan|DC|Francia|26|80", "Danilo|DC|Brasile|34|81", "Thiago Silva|DC|Brasile|41|80", "Nathan Ake|DC|Paesi Bassi|31|83", "Trevoh Chalobah|DC|Inghilterra|26|78",
-    "Alphonso Davies|TS|Canada|25|85", "Nuno Mendes|TS|Portogallo|24|84", "Alejandro Balde|TS|Spagna|22|81", "Andrew Robertson|TS|Scozia|32|84", "Alex Grimaldo|TS|Spagna|30|84",
-    "Federico Dimarco|TS|Italia|28|84", "Leonardo Spinazzola|TS|Italia|33|79", "Andrea Cambiaso|TS|Italia|26|80", "Marc Cucurella|TS|Spagna|27|80", "Ben Chilwell|TS|Inghilterra|29|81",
-    "Luke Shaw|TS|Inghilterra|30|82", "Pervis Estupinan|TS|Ecuador|28|80", "Nicolas Tagliafico|TS|Argentina|33|80", "Ferland Mendy|TS|Francia|31|82", "Miguel Gutierrez|TS|Spagna|24|79",
-    "Fran Garcia|TS|Spagna|26|78", "Raphael Guerreiro|TS|Portogallo|32|82", "David Raum|TS|Germania|28|80", "Maximilian Mittelstadt|TS|Germania|29|79", "Filip Kostic|TS|Serbia|33|81",
-    "Kostas Tsimikas|TS|Grecia|30|79", "Oleksandr Zinchenko|TS|Ucraina|29|81", "Vitalii Mykolenko|TS|Ucraina|27|78", "Lucas Digne|TS|Francia|32|80", "Sergio Reguilon|TS|Spagna|29|77",
-    "Borna Sosa|TS|Croazia|28|78", "Rayan Ait-Nouri|TS|Algeria|25|79", "Theo Corbeanu|AS|Canada|24|70", "Liberato Cacace|TS|Nuova Zelanda|25|73", "Aaron Hickey|TS|Scozia|24|78",
-    "Dani Carvajal|TD|Spagna|34|85", "Reece James|TD|Inghilterra|26|84", "Kyle Walker|TD|Inghilterra|36|84", "Ben White|TD|Inghilterra|28|82", "Pedro Porro|TD|Spagna|26|82",
-    "Denzel Dumfries|TD|Paesi Bassi|30|82", "Jeremie Frimpong|TD|Paesi Bassi|25|84", "Nahuel Molina|TD|Argentina|28|82", "Aaron Wan-Bissaka|TD|Inghilterra|28|80", "Diogo Dalot|TD|Portogallo|27|81",
-    "Noussair Mazraoui|TD|Marocco|28|81", "Benjamin Pavard|TD|Francia|30|83", "Jonathan Clauss|TD|Francia|33|80", "Malo Gusto|TD|Francia|23|79", "Vanderson|TD|Brasile|25|79",
-    "Yan Couto|TD|Brasile|24|79", "Emerson Royal|TD|Brasile|27|78", "Davide Calabria|TD|Italia|29|79", "Giovanni Di Lorenzo|TD|Italia|32|82", "Matteo Darmian|TD|Italia|36|79",
-    "Michael Kayode|TD|Italia|22|75", "Tino Livramento|TD|Inghilterra|23|78", "Kieran Trippier|TD|Inghilterra|35|82", "Vladimir Coufal|TD|Repubblica Ceca|33|78", "Dodo|TD|Brasile|27|79",
-    "Gonzalo Montiel|TD|Argentina|29|78", "Ivan Fresneda|TD|Spagna|21|75", "Matty Cash|TD|Polonia|28|79", "Kevin Mbabu|TD|Svizzera|31|76", "Sergino Dest|TD|Stati Uniti|25|78",
-    "Aurelien Tchouameni|MED|Francia|26|85", "Eduardo Camavinga|CC|Francia|23|84", "Luka Modric|CC|Croazia|40|86", "Ilkay Gundogan|CC|Germania|35|85", "Joshua Kimmich|MED|Germania|31|86",
-    "Leon Goretzka|CC|Germania|31|83", "Joao Palhinha|MED|Portogallo|30|83", "Martin Zubimendi|MED|Spagna|27|83", "Mikel Merino|CC|Spagna|29|83", "Bruno Fernandes|COC|Portogallo|31|87",
-    "Bernardo Silva|CC|Portogallo|31|88", "Vitinha|CC|Portogallo|26|85", "Joao Neves|MED|Portogallo|21|82", "Ruben Neves|MED|Portogallo|29|82", "Enzo Fernandez|CC|Argentina|25|83",
-    "Alexis Mac Allister|CC|Argentina|27|84", "Moises Caicedo|MED|Ecuador|24|82", "Dominik Szoboszlai|COC|Ungheria|25|82", "Ryan Gravenberch|CC|Paesi Bassi|24|81", "Martin Odegaard|COC|Norvegia|27|87",
-    "Hakan Calhanoglu|MED|Turchia|32|85", "Henrikh Mkhitaryan|CC|Armenia|37|82", "Teun Koopmeiners|CC|Paesi Bassi|28|83", "Tijjani Reijnders|CC|Paesi Bassi|27|81", "Ruben Loftus-Cheek|CC|Inghilterra|30|79",
-    "Youssouf Fofana|MED|Francia|27|81", "Khephren Thuram|CC|Francia|25|80", "Adrien Rabiot|CC|Francia|31|83", "Manuel Locatelli|MED|Italia|28|81", "Weston McKennie|CC|Stati Uniti|27|79",
-    "Piotr Zielinski|CC|Polonia|32|82", "Stanislav Lobotka|MED|Slovacchia|31|83", "Andre-Frank Zambo Anguissa|CC|Camerun|30|82", "Yves Bissouma|MED|Mali|29|80", "Rodrigo Bentancur|CC|Uruguay|28|81",
-    "Pierre-Emile Hojbjerg|MED|Danimarca|30|80", "Christian Eriksen|CC|Danimarca|34|80", "Kobbie Mainoo|CC|Inghilterra|21|78", "Casemiro|MED|Brasile|34|84", "Bruno Guimaraes|CC|Brasile|28|84",
-    "Joelinton|CC|Brasile|29|80", "Lucas Paqueta|COC|Brasile|28|82", "James Ward-Prowse|CC|Inghilterra|31|80", "Conor Gallagher|CC|Inghilterra|26|81", "Cole Palmer|COC|Inghilterra|24|85",
-    "Phil Foden|COC|Inghilterra|26|87", "James Maddison|COC|Inghilterra|29|82", "Eberechi Eze|COC|Inghilterra|28|82", "Michael Olise|AD|Francia|24|83", "Xavi Simons|COC|Paesi Bassi|23|83",
-    "Dani Olmo|COC|Spagna|28|84", "Antoine Griezmann|COC|Francia|35|87", "Paulo Dybala|COC|Argentina|32|84", "Isco|COC|Spagna|34|82", "Nabil Fekir|COC|Francia|32|81",
-    "Rayan Cherki|COC|Francia|22|79", "Julian Brandt|COC|Germania|30|83", "Kai Havertz|COC|Germania|27|83", "Mason Mount|COC|Inghilterra|27|80", "Rodrigo De Paul|CC|Argentina|32|82",
-    "Leandro Paredes|MED|Argentina|31|80", "Thiago Almada|COC|Argentina|25|80", "Giovani Lo Celso|CC|Argentina|30|80", "Luis Alberto|COC|Spagna|33|82", "Lorenzo Pellegrini|COC|Italia|30|82",
-    "Davide Frattesi|CC|Italia|26|81", "Lazar Samardzic|CC|Serbia|24|79", "Georgiy Sudakov|COC|Ucraina|23|79", "Orkun Kokcu|CC|Turchia|25|81", "Marcel Sabitzer|CC|Austria|32|81",
-    "Konrad Laimer|MED|Austria|29|80", "Youri Tielemans|CC|Belgio|29|81", "Amadou Onana|MED|Belgio|24|81", "Sofyan Amrabat|MED|Marocco|29|79", "Azzedine Ounahi|CC|Marocco|26|78",
-    "Mohamed Salah|AD|Egitto|34|89", "Lionel Messi|AD|Argentina|39|88", "Cristiano Ronaldo|ATT|Portogallo|41|86", "Neymar|AS|Brasile|34|87", "Harry Kane|ATT|Inghilterra|32|90",
-    "Robert Lewandowski|ATT|Polonia|37|88", "Heung-min Son|AS|Corea del Sud|33|87", "Leroy Sane|AD|Germania|30|85", "Serge Gnabry|AD|Germania|31|83", "Kingsley Coman|AS|Francia|30|84",
-    "Ousmane Dembele|AD|Francia|29|86", "Raphinha|AD|Brasile|29|84", "Ferran Torres|AD|Spagna|26|82", "Lamine Yamal|AD|Spagna|18|84", "Nico Williams|AS|Spagna|23|84",
-    "Inaki Williams|AD|Ghana|31|82", "Rodrygo|AD|Brasile|25|86", "Endrick|ATT|Brasile|20|78", "Richarlison|ATT|Brasile|29|81", "Gabriel Jesus|ATT|Brasile|29|83",
-    "Leandro Trossard|AS|Belgio|31|82", "Ollie Watkins|ATT|Inghilterra|30|84", "Dominic Solanke|ATT|Inghilterra|28|81", "Alexander Isak|ATT|Svezia|26|85", "Callum Wilson|ATT|Inghilterra|34|80",
-    "Anthony Gordon|AS|Inghilterra|25|82", "Marcus Rashford|AS|Inghilterra|28|82", "Alejandro Garnacho|AS|Argentina|21|79", "Rasmus Hojlund|ATT|Danimarca|23|80", "Antony|AD|Brasile|26|78",
-    "Darwin Nunez|ATT|Uruguay|27|83", "Cody Gakpo|AS|Paesi Bassi|27|83", "Federico Chiesa|AD|Italia|28|82", "Kenan Yildiz|AS|Turchia|21|78", "Matteo Politano|AD|Italia|32|81",
-    "Mattia Zaccagni|AS|Italia|31|81", "Domenico Berardi|AD|Italia|32|82", "Ademola Lookman|AS|Nigeria|28|82", "Gianluca Scamacca|ATT|Italia|27|81", "Mateo Retegui|ATT|Italia|27|80",
-    "Marcus Thuram|ATT|Francia|28|84", "Romelu Lukaku|ATT|Belgio|33|82", "Edin Dzeko|ATT|Bosnia ed Erzegovina|40|80", "Mehdi Taremi|ATT|Iran|33|81", "Christian Pulisic|AD|Stati Uniti|27|82",
-    "Noah Okafor|AS|Svizzera|26|79", "Alvaro Morata|ATT|Spagna|33|82", "Joao Felix|COC|Portogallo|26|82", "Angel Correa|ATT|Argentina|31|81", "Memphis Depay|ATT|Paesi Bassi|32|81",
-    "Artem Dovbyk|ATT|Ucraina|29|83", "Viktor Tsygankov|AD|Ucraina|28|81", "Alexander Sorloth|ATT|Norvegia|30|82", "Mikel Oyarzabal|AS|Spagna|29|82", "Gerard Moreno|ATT|Spagna|34|81",
-    "Iago Aspas|ATT|Spagna|38|81", "Joselu|ATT|Spagna|36|80", "Brahim Diaz|COC|Marocco|26|82", "Savinho|AD|Brasile|22|80", "Jeremy Doku|AS|Belgio|24|82",
-    "Jack Grealish|AS|Inghilterra|30|83", "Julian Alvarez|ATT|Argentina|26|85", "Karim Adeyemi|AS|Germania|24|81", "Donyell Malen|AD|Paesi Bassi|27|82", "Serhou Guirassy|ATT|Guinea|30|83",
-    "Deniz Undav|ATT|Germania|30|81", "Victor Boniface|ATT|Nigeria|25|83", "Lois Openda|ATT|Belgio|26|84", "Maximilian Beier|ATT|Germania|23|79", "Randal Kolo Muani|ATT|Francia|27|82",
-    "Goncalo Ramos|ATT|Portogallo|25|82", "Bradley Barcola|AS|Francia|23|81", "Desire Doue|AS|Francia|20|78", "Marco Asensio|AD|Spagna|30|81", "Mohammed Kudus|AD|Ghana|25|82",
-    "Jarrod Bowen|AD|Inghilterra|29|83", "Kaoru Mitoma|AS|Giappone|29|82", "Viktor Gyokeres|ATT|Svezia|28|85", "Pedro Goncalves|AS|Portogallo|28|82", "Francisco Trincao|AD|Portogallo|26|80",
-    "Angel Di Maria|AD|Argentina|38|82", "Rafa Silva|AS|Portogallo|33|81", "Evanilson|ATT|Brasile|26|80", "Pepe|AD|Brasile|29|80", "Galeno|AS|Brasile|28|81",
-    "Ivan Toney|ATT|Inghilterra|30|82", "Hugo Ekitike|ATT|Francia|24|79", "Jonathan David|ATT|Canada|26|84", "David Neres|AD|Brasile|29|80", "Malcom|AD|Brasile|29|81",
-    "Karim Benzema|ATT|Francia|38|86", "Roberto Firmino|ATT|Brasile|34|80", "Sadio Mane|AS|Senegal|34|84", "Riyad Mahrez|AD|Algeria|35|84", "Aleksandar Mitrovic|ATT|Serbia|31|82",
-    "Pierre-Emerick Aubameyang|ATT|Gabon|36|81", "Alexandre Lacazette|ATT|Francia|35|81", "Wissam Ben Yedder|ATT|Francia|35|80", "Amine Gouiri|AS|Algeria|26|80", "Brian Brobbey|ATT|Paesi Bassi|24|79"
-  ];
+      <section id="homeView" class="view active">
+        <div class="hero-panel">
+          <div>
+            <p class="eyebrow">Il mercato apre ora</p>
+            <h2>Costruisci la tua squadra. Sfida tutti.</h2>
+            <p class="muted">
+              Asta flash, gestione della rosa e un'intera stagione da vivere con gli amici o contro l'intelligenza artificiale.
+            </p>
+          </div>
+          <div class="mode-grid">
+            <button id="singleModeBtn" class="mode-card" type="button">
+              <span class="mode-index">01</span>
+              <span>Single player</span>
+              <strong>Asta contro IA</strong>
+              <small>Inizia subito</small>
+            </button>
+            <button id="multiModeBtn" class="mode-card" type="button">
+              <span class="mode-index">02</span>
+              <span>Multiplayer</span>
+              <strong>Lobby amici</strong>
+              <small>Crea o entra</small>
+            </button>
+          </div>
+        </div>
+      </section>
 
-  const used = new Set(basePlayers.map((player) => player.name));
-  const players = [...basePlayers];
-  realPlayerRows.forEach((row) => {
-    const [name, role, nation, age, overall] = row.split("|");
-    if (used.has(name)) return;
-    used.add(name);
-    players.push({ name, role, nation, age: Number(age), overall: Number(overall) });
-  });
-  return players;
-})();
+      <section id="multiView" class="view">
+        <div class="setup-grid">
+          <div class="panel">
+            <p class="eyebrow">Multiplayer</p>
+            <h2>Crea lobby</h2>
+            <div class="field-stack">
+              <label>
+                Nome host
+                <input id="hostNameInput" type="text" maxlength="18" value="Host" />
+              </label>
+            </div>
+            <button id="createLobbyBtn" class="primary-button" type="button">Crea lobby host</button>
+          </div>
 
-if (typeof module !== "undefined") {
-  module.exports = playerDatabase;
-}
+          <div class="panel">
+            <p class="eyebrow">Entra</p>
+            <h2>Unisciti a una lobby</h2>
+            <div class="field-stack">
+              <label>
+                Il tuo nome
+                <input id="joinNameInput" type="text" maxlength="18" value="Manager" />
+              </label>
+              <label>
+                Codice lobby
+                <input id="joinCodeInput" type="text" maxlength="6" placeholder="ABC123" />
+              </label>
+            </div>
+            <button id="joinLobbyBtn" class="primary-button" type="button">Entra in lobby</button>
+            <p id="multiStatusText" class="setup-summary">Avvia server.js per usare il multiplayer.</p>
+          </div>
+        </div>
+      </section>
 
+      <section id="lobbyView" class="view">
+        <div class="lobby-layout">
+          <div class="panel lobby-panel">
+            <p class="eyebrow">Lobby multiplayer</p>
+            <h2>Codice: <span id="lobbyCodeLabel">------</span></h2>
+            <div class="share-box">
+              <span id="lobbyShareLink">Link non disponibile</span>
+              <button id="copyLobbyLinkBtn" class="ghost-button" type="button">Copia link</button>
+            </div>
+            <p id="lobbySettingsLabel" class="muted"></p>
+            <div class="lobby-profile">
+              <div class="color-picker-field">
+                <span>Colore</span>
+                <button id="lobbyColorButton" class="single-color-button" type="button" aria-label="Cambia colore"></button>
+                <input id="lobbyColorInput" type="hidden" value="#1e8e4d" />
+              </div>
+              <label>
+                Tua formazione
+                <select id="lobbyFormationSelect">
+                  <option value="4-3-3">4-3-3</option>
+                  <option value="4-4-2">4-4-2</option>
+                  <option value="3-5-2">3-5-2</option>
+                  <option value="4-2-3-1">4-2-3-1</option>
+                  <option value="3-4-3">3-4-3</option>
+                </select>
+              </label>
+              <button id="lobbyReadyBtn" class="primary-button" type="button">Pronto</button>
+            </div>
+            <p id="lobbyActionStatus" class="muted status-text"></p>
+            <div id="lobbyPlayersList" class="lobby-players-list"></div>
+            <button id="startLobbyAuctionBtn" class="primary-button" type="button">Avvia asta host</button>
+          </div>
+          <aside class="panel lobby-settings-panel">
+            <p class="eyebrow">Settaggi host</p>
+            <h2>Partita</h2>
+            <div class="field-stack">
+              <label>
+                Crediti
+                <input id="lobbyCreditsInput" type="number" min="250" max="1200" step="10" />
+              </label>
+              <label>
+                Giocatori in asta
+                <input id="lobbyRoundsInput" type="number" min="12" max="300" step="1" />
+              </label>
+              <label>
+                Bot simulazione
+                <input id="lobbyBotsInput" type="number" min="0" max="20" step="1" />
+              </label>
+              <label id="lobbyBotDifficultyField" class="bot-difficulty-field is-hidden">
+                Difficolta bot
+                <select id="lobbyBotDifficultySelect">
+                  <option value="easy">Facile</option>
+                  <option value="normal" selected>Media</option>
+                  <option value="hard">Difficile</option>
+                </select>
+              </label>
+            </div>
+            <button id="saveLobbySettingsBtn" class="ghost-button" type="button">Salva settaggi</button>
+          </aside>
+        </div>
+      </section>
 
+      <section id="setupView" class="view">
+        <div class="setup-grid">
+          <div class="panel">
+            <p class="eyebrow">Single player</p>
+            <h2>Imposta la partita</h2>
+            <div class="field-stack">
+              <label>
+                Difficolta
+                <select id="difficultySelect">
+                  <option value="easy">Facile</option>
+                  <option value="normal" selected>Normale</option>
+                  <option value="hard">Difficile</option>
+                  <option value="expert">Esperto</option>
+                </select>
+              </label>
+              <label>
+                Modulo
+                <select id="formationSelect">
+                  <option value="4-3-3">4-3-3</option>
+                  <option value="4-4-2">4-4-2</option>
+                  <option value="3-5-2">3-5-2</option>
+                  <option value="4-2-3-1">4-2-3-1</option>
+                  <option value="3-4-3">3-4-3</option>
+                </select>
+              </label>
+              <label>
+                Crediti iniziali
+                <input id="creditsInput" type="number" min="250" max="1200" step="10" value="650" />
+              </label>
+              <label>
+                Giocatori in asta
+                <input id="auctionPlayersInput" type="number" min="12" max="300" step="1" value="24" />
+              </label>
+              <label>
+                IA in asta
+                <input id="aiPlayersInput" type="number" min="1" max="8" step="1" value="3" />
+              </label>
+            </div>
+            <p id="setupSummary" class="setup-summary">Budget 650 cr - 24 giocatori in asta - 3 IA asta - campionato a 20 squadre</p>
+            <button id="startGameBtn" class="primary-button" type="button">Avvia asta</button>
+          </div>
+          <div class="panel compact">
+            <p class="eyebrow">Regole rapide</p>
+            <ul class="rules-list">
+              <li>Budget iniziale e numero giocatori personalizzabili.</li>
+              <li>Ogni giocatore resta 10 secondi in asta.</li>
+              <li>Ogni rilancio negli ultimi secondi riporta il timer a 5.</li>
+              <li>Vince chi chiude con rosa piu forte ed equilibrata.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="gameView" class="view">
+        <div class="game-layout">
+          <aside class="panel manager-panel">
+            <p id="userPanelTitle" class="eyebrow">Manager</p>
+            <h2>La tua squadra</h2>
+            <div class="stat-row">
+              <span>Crediti</span>
+              <strong id="userCredits">0</strong>
+            </div>
+            <div class="stat-row">
+              <span>Modulo</span>
+              <strong id="userFormation">4-3-3</strong>
+            </div>
+            <div class="stat-row">
+              <span>Valutazione</span>
+              <strong id="teamRating">0</strong>
+            </div>
+            <div class="mini-lineup-block">
+              <p class="eyebrow">Anteprima modulo</p>
+              <div id="auctionFitMessage" class="fit-message">In attesa del prossimo giocatore.</div>
+              <div id="miniFormation" class="mini-formation"></div>
+            </div>
+            <div id="squadList" class="squad-list"></div>
+          </aside>
+
+          <section class="auction-stage">
+            <div class="auction-card">
+              <div class="auction-header">
+                <span id="roundLabel">Asta 1/1</span>
+                <span id="timerLabel" class="timer">10.0</span>
+              </div>
+              <p id="playerRole" class="role-pill">ATT</p>
+              <h2 id="playerName">Nome giocatore</h2>
+              <div class="player-meta">
+                <span id="playerNation">Italia</span>
+                <span id="playerAge">24 anni</span>
+                <span>OVR <strong id="playerOverall">80</strong></span>
+              </div>
+              <div class="current-bid">
+                <span>Offerta attuale</span>
+                <strong id="currentBid">0</strong>
+                <small id="currentLeader">Nessuna offerta</small>
+              </div>
+              <div class="bid-controls">
+                <button data-bid="1" type="button">+1</button>
+                <button data-bid="5" type="button">+5</button>
+                <button data-bid="10" type="button">+10</button>
+                <button data-bid="25" type="button">+25</button>
+              </div>
+              <p id="auctionMessage" class="muted status-text">Preparati al primo nome.</p>
+            </div>
+          </section>
+
+          <aside class="panel rivals-panel">
+            <p id="rivalsTitle" class="eyebrow">Avversari AI</p>
+            <h2>Lobby</h2>
+            <div id="rivalsList" class="rivals-list"></div>
+            <div class="log-box">
+              <p class="eyebrow">Log asta</p>
+              <div id="auctionLog"></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="squadView" class="view">
+        <div class="squad-builder">
+          <div class="panel squad-toolbar">
+            <div>
+              <p class="eyebrow">Gestione rosa</p>
+              <h2>Schiera i titolari</h2>
+              <p id="lineupSummary" class="muted"></p>
+            </div>
+            <label class="tactic-control">
+              Tattica
+              <select id="tacticSelect">
+                <option value="balanced">Equilibrata</option>
+                <option value="pressing">Pressing alto</option>
+                <option value="counter">Contropiede</option>
+                <option value="possession">Possesso</option>
+                <option value="direct">Verticale</option>
+                <option value="wide">Gioco sulle fasce</option>
+                <option value="lowblock">Blocco basso</option>
+              </select>
+            </label>
+            <div class="toolbar-actions">
+              <button id="autoFillBtn" class="ghost-button" type="button">Genera posti vacanti</button>
+              <button id="simulateBtn" class="primary-button" type="button">Simula stagione</button>
+            </div>
+          </div>
+
+          <section class="panel tactical-workbench">
+            <div class="tactical-workbench-head">
+              <div>
+                <p class="eyebrow">Piano partita</p>
+                <h2>Tattica avanzata</h2>
+              </div>
+              <div id="tacticalCompatibility" class="compatibility-score">Compatibilita <strong>--</strong></div>
+            </div>
+            <div class="advanced-tactics-grid">
+              <label>Mentalita
+                <select id="mentalitySelect">
+                  <option value="cautious">Prudente</option>
+                  <option value="balanced">Equilibrata</option>
+                  <option value="offensive">Offensiva</option>
+                </select>
+              </label>
+              <label>Costruzione
+                <select id="buildupSelect">
+                  <option value="mixed">Mista</option>
+                  <option value="possession">Possesso</option>
+                  <option value="direct">Verticale</option>
+                  <option value="wide">Fasce</option>
+                </select>
+              </label>
+              <label>Pressing
+                <select id="pressingSelect">
+                  <option value="low">Basso</option>
+                  <option value="medium">Medio</option>
+                  <option value="high">Alto</option>
+                </select>
+              </label>
+              <label>Linea difensiva
+                <select id="defensiveLineSelect">
+                  <option value="low">Bassa</option>
+                  <option value="medium">Media</option>
+                  <option value="high">Alta</option>
+                </select>
+              </label>
+              <label class="captain-control">Capitano
+                <select id="captainSelect"></select>
+              </label>
+            </div>
+            <div id="tacticalEffects" class="tactical-effects" aria-live="polite"></div>
+            <div class="tactical-breakdown" aria-label="Dettaglio bonus e malus tattici">
+              <div class="tactical-breakdown-head"><span>Impostazione</span><span>Scelta</span><span>Pro</span><span>Contro</span></div>
+              <div id="tacticalBreakdown"></div>
+            </div>
+            <div class="tactical-insights">
+              <p id="tacticalSummary" class="muted"></p>
+              <p id="captainSummary" class="captain-summary"></p>
+            </div>
+          </section>
+
+          <div id="squadStatsBox" class="squad-stats-box"></div>
+
+          <div class="lineup-layout">
+            <section class="pitch-panel">
+              <div id="footballPitch" class="football-pitch"></div>
+            </section>
+            <aside class="panel bench-panel">
+              <p class="eyebrow">Panchina</p>
+              <h2>Disponibili</h2>
+              <div id="benchList" class="bench-list"></div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="resultsView" class="view">
+        <div class="season-results">
+          <div class="panel results-panel">
+            <p class="eyebrow">Stagione simulata</p>
+            <h2 id="resultTitle">Classifica finale</h2>
+            <div id="winnerCelebration" class="winner-celebration" aria-live="polite"></div>
+            <p id="resultSummary" class="muted"></p>
+            <div id="standingsList" class="league-table"></div>
+            <button id="playAgainBtn" class="primary-button" type="button">Gioca ancora</button>
+          </div>
+          <div class="panel player-stats-panel">
+            <p class="eyebrow">Statistiche giocatori</p>
+            <h2>Gol e assist</h2>
+            <h3 class="stats-subtitle">Top 10 campionato</h3>
+            <div id="playerStatsList" class="player-stats-list"></div>
+            <section class="team-player-stats" aria-labelledby="teamPlayerStatsTitle">
+              <div class="team-stats-heading">
+                <p class="eyebrow">Rendimento rosa</p>
+                <h3 id="teamPlayerStatsTitle">I tuoi giocatori</h3>
+              </div>
+              <div id="teamPlayerStatsList" class="player-stats-list team-player-stats-list"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section id="liveSimView" class="view">
+        <div class="live-sim-layout">
+          <section class="panel live-feed-panel">
+            <p class="eyebrow">Simulazione live</p>
+            <h2 id="liveRoundTitle">Giornata 1</h2>
+            <button id="skipSimBtn" class="ghost-button" type="button">Vota skip</button>
+            <div id="liveMatchFeed" class="live-match-feed"></div>
+          </section>
+          <aside class="panel live-table-panel">
+            <p class="eyebrow">Classifica live</p>
+            <div id="liveTable" class="league-table"></div>
+          </aside>
+        </div>
+      </section>
+    </main>
+    <script src="players.js?v=12"></script>
+    <script src="app.js?v=12"></script>
+  </body>
+</html>
