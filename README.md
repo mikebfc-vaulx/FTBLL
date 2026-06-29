@@ -728,6 +728,53 @@ select option {
   border-left-color: #71837a;
 }
 
+.tactical-effect[class*="tactical-effect-"] {
+  border-left-color: var(--stat-color);
+}
+
+.tactical-effect[class*="tactical-effect-"] > span {
+  color: var(--stat-color);
+}
+
+.squad-stat[class*="squad-stat-"] {
+  border-top-color: var(--stat-color);
+  background: color-mix(in srgb, var(--stat-color) 8%, var(--ui-panel-2));
+}
+
+.squad-stat[class*="squad-stat-"] strong {
+  color: #071009;
+  background: var(--stat-color);
+}
+
+.squad-stat[class*="squad-stat-"] small {
+  color: color-mix(in srgb, var(--stat-color) 78%, #c8d5ce);
+}
+
+.tactic-tab {
+  border-color: color-mix(in srgb, var(--tactic-color) 42%, var(--ui-line));
+  border-top-color: var(--tactic-color);
+  background: color-mix(in srgb, var(--tactic-color) 9%, #0a120e);
+  color: color-mix(in srgb, var(--tactic-color) 78%, #d4dfd9);
+}
+
+.tactic-tab select {
+  border-color: color-mix(in srgb, var(--tactic-color) 48%, var(--ui-line));
+  background-color: color-mix(in srgb, var(--tactic-color) 7%, #101a14);
+  color: var(--ui-text);
+}
+
+.tactic-bonus-chip {
+  border-color: color-mix(in srgb, var(--tactic-color) 60%, #26382e);
+  background: color-mix(in srgb, var(--tactic-color) 16%, #0a120e);
+  color: color-mix(in srgb, var(--tactic-color) 80%, #e6eee9);
+}
+
+.live-round-results .live-user-match,
+.league-row.live-user-row {
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--team-color, var(--ui-green)) 16%, #0b130f);
+}
+
 .tactical-breakdown {
   border-color: var(--ui-line);
 }

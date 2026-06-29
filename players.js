@@ -6,8 +6,8 @@
     <title>FTBALL Friends</title>
     <meta name="theme-color" content="#07110d" />
     <link rel="icon" href="ftball-logo.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=12" />
-    <link rel="stylesheet" href="modern-ui.css?v=12" />
+    <link rel="stylesheet" href="styles.css?v=14" />
+    <link rel="stylesheet" href="modern-ui.css?v=14" />
   </head>
   <body data-view="home">
     <main class="app-shell">
@@ -276,18 +276,6 @@
               <h2>Schiera i titolari</h2>
               <p id="lineupSummary" class="muted"></p>
             </div>
-            <label class="tactic-control">
-              Tattica
-              <select id="tacticSelect">
-                <option value="balanced">Equilibrata</option>
-                <option value="pressing">Pressing alto</option>
-                <option value="counter">Contropiede</option>
-                <option value="possession">Possesso</option>
-                <option value="direct">Verticale</option>
-                <option value="wide">Gioco sulle fasce</option>
-                <option value="lowblock">Blocco basso</option>
-              </select>
-            </label>
             <div class="toolbar-actions">
               <button id="autoFillBtn" class="ghost-button" type="button">Genera posti vacanti</button>
               <button id="simulateBtn" class="primary-button" type="button">Simula stagione</button>
@@ -303,14 +291,14 @@
               <div id="tacticalCompatibility" class="compatibility-score">Compatibilita <strong>--</strong></div>
             </div>
             <div class="advanced-tactics-grid">
-              <label>Mentalita
+              <label class="tactic-tab tactic-tab-mentality">Mentalita
                 <select id="mentalitySelect">
                   <option value="cautious">Prudente</option>
                   <option value="balanced">Equilibrata</option>
                   <option value="offensive">Offensiva</option>
                 </select>
               </label>
-              <label>Costruzione
+              <label class="tactic-tab tactic-tab-buildup">Costruzione
                 <select id="buildupSelect">
                   <option value="mixed">Mista</option>
                   <option value="possession">Possesso</option>
@@ -318,14 +306,14 @@
                   <option value="wide">Fasce</option>
                 </select>
               </label>
-              <label>Pressing
+              <label class="tactic-tab tactic-tab-pressing">Pressing
                 <select id="pressingSelect">
                   <option value="low">Basso</option>
                   <option value="medium">Medio</option>
                   <option value="high">Alto</option>
                 </select>
               </label>
-              <label>Linea difensiva
+              <label class="tactic-tab tactic-tab-line">Linea difensiva
                 <select id="defensiveLineSelect">
                   <option value="low">Bassa</option>
                   <option value="medium">Media</option>
@@ -403,7 +391,7 @@
         </div>
       </section>
     </main>
-    <script src="players.js?v=12"></script>
-    <script src="app.js?v=12"></script>
+    <script src="players.js?v=14"></script>
+    <script src="app.js?v=14"></script>
   </body>
 </html>
