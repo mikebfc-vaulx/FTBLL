@@ -51,6 +51,19 @@ const roleWeights = {
   ATT: { goals: 1.65, assists: 0.5 }
 };
 
+const compatibleRoleMoves = {
+  TS: ["DC", "AS"],
+  TD: ["DC", "AD"],
+  DC: ["TS", "TD", "MED"],
+  MED: ["CC", "DC"],
+  CC: ["MED", "COC"],
+  COC: ["CC", "ATT"],
+  AS: ["AD", "ATT", "TS"],
+  AD: ["AS", "ATT", "TD"],
+  ATT: ["AS", "AD", "COC"],
+  POR: []
+};
+
 const generatedNames = {
   first: ["Alex", "Marco", "Leo", "Samir", "Diego", "Nico", "Lucas", "Enzo", "Ivan", "Noah", "Milo", "Toni"],
   last: ["Rossi", "Costa", "Ferreira", "Marin", "Silva", "Moretti", "Kovac", "Ramos", "Greco", "Conti", "Bianchi", "Santos"]
@@ -58,46 +71,61 @@ const generatedNames = {
 
 const playerColors = ["#1e8e4d", "#2f80ed", "#d64545", "#f2a900", "#9b51e0", "#00a6a6", "#f26b38", "#5b6ee1"];
 const tacticProfiles = {
-  balanced: { attack: 1, defense: 1, shots: 1, cards: 1, penaltyMiss: 1 },
-  pressing: { attack: 1.08, defense: 0.96, shots: 1.12, cards: 1.35, penaltyMiss: 1.02 },
-  counter: { attack: 1.04, defense: 1.06, shots: 0.9, cards: 0.95, penaltyMiss: 0.95 },
-  possession: { attack: 1.02, defense: 1.08, shots: 1.04, cards: 0.82, penaltyMiss: 0.9 },
-  direct: { attack: 1.1, defense: 0.93, shots: 1.18, cards: 1.08, penaltyMiss: 1.1 },
-  wide: { attack: 1.06, defense: 0.98, shots: 1.1, cards: 0.96, penaltyMiss: 1 },
-  lowblock: { attack: 0.9, defense: 1.16, shots: 0.78, cards: 1.05, penaltyMiss: 0.92 }
+  balanced: { attack: 1, defense: 1, shots: 1 },
+  pressing: { attack: 1.05, defense: 0.98, shots: 1.05 },
+  counter: { attack: 1.02, defense: 1.04, shots: 0.97 },
+  possession: { attack: 0.99, defense: 1.02, shots: 0.98 },
+  direct: { attack: 1.04, defense: 0.98, shots: 1.05 },
+  wide: { attack: 1.03, defense: 0.99, shots: 1.03 },
+  lowblock: { attack: 0.96, defense: 1.05, shots: 0.95 }
 };
 
 const tacticalPresets = {
-  balanced: { mentality: "balanced", buildup: "possession", pressing: "medium", defensiveLine: "medium" },
+  balanced: { mentality: "balanced", buildup: "mixed", pressing: "medium", defensiveLine: "medium" },
   pressing: { mentality: "offensive", buildup: "possession", pressing: "high", defensiveLine: "high" },
   counter: { mentality: "cautious", buildup: "direct", pressing: "low", defensiveLine: "low" },
   possession: { mentality: "balanced", buildup: "possession", pressing: "medium", defensiveLine: "high" },
   direct: { mentality: "offensive", buildup: "direct", pressing: "medium", defensiveLine: "medium" },
   wide: { mentality: "balanced", buildup: "wide", pressing: "medium", defensiveLine: "medium" },
-  lowblock: { mentality: "cautious", buildup: "possession", pressing: "low", defensiveLine: "low" }
+  lowblock: { mentality: "cautious", buildup: "mixed", pressing: "low", defensiveLine: "low" }
 };
 
 const tacticalOptions = {
   mentality: {
-    cautious: { attack: 0.93, defense: 1.07, shots: 0.92, cards: 0.94 },
-    balanced: { attack: 1, defense: 1, shots: 1, cards: 1 },
-    offensive: { attack: 1.08, defense: 0.94, shots: 1.1, cards: 1.08 }
+    cautious: { attack: 0.98, midfield: 1.01, defense: 1.02, shots: 0.99 },
+    balanced: { attack: 0.995, midfield: 1.005, defense: 1.005, shots: 0.995 },
+    offensive: { attack: 1.02, midfield: 0.99, defense: 0.98, shots: 1.02 }
   },
   buildup: {
-    possession: { attack: 1.01, defense: 1.02, shots: 0.98, cards: 0.9 },
-    direct: { attack: 1.06, defense: 0.96, shots: 1.08, cards: 1.05 },
-    wide: { attack: 1.04, defense: 0.99, shots: 1.06, cards: 0.97 }
+    mixed: { attack: 1.005, midfield: 1.005, defense: 0.995, shots: 0.995 },
+    possession: { attack: 0.99, midfield: 1.02, defense: 1.01, shots: 0.99 },
+    direct: { attack: 1.02, midfield: 0.98, defense: 0.99, shots: 1.02 },
+    wide: { attack: 1.02, midfield: 1.01, defense: 0.99, shots: 1.01 }
   },
   pressing: {
-    low: { attack: 0.95, defense: 1.04, shots: 0.91, cards: 0.82 },
-    medium: { attack: 1, defense: 1, shots: 1, cards: 1 },
-    high: { attack: 1.06, defense: 0.96, shots: 1.1, cards: 1.3 }
+    low: { attack: 0.99, midfield: 0.99, defense: 1.02, shots: 0.99 },
+    medium: { attack: 1.005, midfield: 0.995, defense: 1.005, shots: 0.995 },
+    high: { attack: 1.02, midfield: 1.02, defense: 0.98, shots: 1.02 }
   },
   defensiveLine: {
-    low: { attack: 0.94, defense: 1.07, shots: 0.94, cards: 0.96 },
-    medium: { attack: 1, defense: 1, shots: 1, cards: 1 },
-    high: { attack: 1.04, defense: 0.96, shots: 1.05, cards: 1.07 }
+    low: { attack: 0.98, midfield: 0.99, defense: 1.03, shots: 0.98 },
+    medium: { attack: 0.995, midfield: 0.995, defense: 0.995, shots: 1.015 },
+    high: { attack: 1.02, midfield: 1.01, defense: 0.98, shots: 1.01 }
   }
+};
+
+const tacticalChoiceLabels = {
+  mentality: { label: "Mentalita", cautious: "Prudente", balanced: "Equilibrata", offensive: "Offensiva" },
+  buildup: { label: "Costruzione", mixed: "Mista", possession: "Possesso", direct: "Verticale", wide: "Fasce" },
+  pressing: { label: "Pressing", low: "Basso", medium: "Medio", high: "Alto" },
+  defensiveLine: { label: "Linea difensiva", low: "Bassa", medium: "Media", high: "Alta" }
+};
+
+const tacticalGroupMeta = {
+  mentality: { short: "MEN", className: "mentality" },
+  buildup: { short: "COST", className: "buildup" },
+  pressing: { short: "PRESS", className: "pressing" },
+  defensiveLine: { short: "LINEA", className: "line" }
 };
 
 function normalizeTacticalPlan(plan, preset = "balanced") {
@@ -108,6 +136,23 @@ function normalizeTacticalPlan(plan, preset = "balanced") {
     pressing: tacticalOptions.pressing[plan?.pressing] ? plan.pressing : fallback.pressing,
     defensiveLine: tacticalOptions.defensiveLine[plan?.defensiveLine] ? plan.defensiveLine : fallback.defensiveLine
   };
+}
+
+function tacticalPlanEffects(plan, preset = "balanced") {
+  const normalized = normalizeTacticalPlan(plan, preset);
+  const effects = { attack: 1, midfield: 1, defense: 1, shots: 1 };
+  Object.entries(normalized).forEach(([group, value]) => {
+    const option = tacticalOptions[group]?.[value];
+    if (!option) return;
+    ["attack", "midfield", "defense", "shots"].forEach((key) => {
+      effects[key] *= option[key] ?? 1;
+    });
+  });
+  effects.attack = Math.max(0.94, Math.min(1.06, effects.attack));
+  effects.midfield = Math.max(0.94, Math.min(1.06, effects.midfield));
+  effects.defense = Math.max(0.94, Math.min(1.06, effects.defense));
+  effects.shots = Math.max(0.94, Math.min(1.06, effects.shots));
+  return { ...effects, plan: normalized };
 }
 
 function playerIdentityHash(player) {
@@ -235,6 +280,42 @@ function repartoForRole(role) {
   if (["POR", "DC", "TS", "TD"].includes(role)) return "defense";
   if (["MED", "CC", "COC"].includes(role)) return "midfield";
   return "attack";
+}
+
+function roleChemistryPenalty(player, slotRole) {
+  if (!player || player.role === slotRole) return 0;
+  if (compatibleRoleMoves[player.role]?.includes(slotRole)) return 3;
+  if (player.role === "POR" || slotRole === "POR") return 12;
+  return 8;
+}
+
+function nationalityChemistryBonus(starters) {
+  const counts = {};
+  starters.forEach((slot) => {
+    const player = slot.player;
+    if (!player?.nation || player.generated || player.nation === "Academy") return;
+    counts[player.nation] = (counts[player.nation] || 0) + 1;
+  });
+  const bonus = Object.values(counts).reduce((sum, count) => {
+    if (count < 2) return sum;
+    if (count === 2) return sum + 1;
+    if (count === 3) return sum + 2;
+    return sum + Math.min(12, (count - 2) * 2);
+  }, 0);
+  return Math.min(12, bonus);
+}
+
+function teamChemistry(starters) {
+  const rolePenalty = starters.reduce((sum, slot) => sum + roleChemistryPenalty(slot.player, slot.role), 0);
+  const nationBonus = nationalityChemistryBonus(starters);
+  const score = Math.max(70, Math.min(112, 100 - rolePenalty + nationBonus));
+  return { score, rolePenalty, nationBonus };
+}
+
+function chemistrySimulationMultiplier(score) {
+  if (score > 100) return Math.min(1.03, 1 + (score - 100) * 0.0025);
+  if (score < 95) return Math.max(0.9, 1 - (95 - score) * 0.005);
+  return 1;
 }
 
 function starBonusesByReparto(starters) {
@@ -485,7 +566,6 @@ function showSquadBuilder() {
   showView("squad");
   const user = getUser();
   if (user && !user.tacticalPlan) user.tacticalPlan = normalizeTacticalPlan(null, user.tactic || state.config.tactic || "balanced");
-  $("tacticSelect").value = user?.tactic || state.config.tactic || "balanced";
   renderSquadBuilder();
 }
 
@@ -607,6 +687,20 @@ function clearMatchState() {
   $("playerOverall").textContent = "-";
   $("currentBid").textContent = "0";
   $("currentLeader").textContent = "Nessuna offerta";
+  $("userPanelTitle").textContent = "Manager";
+  $("userCredits").textContent = "0";
+  $("teamRating").textContent = "0";
+  $("miniFormation").innerHTML = "";
+  $("auctionFitMessage").textContent = "In attesa del prossimo giocatore.";
+  $("auctionFitMessage").className = "fit-message";
+  $("squadList").innerHTML = `<p class="muted">La rosa e vuota.</p>`;
+  $("rivalsList").innerHTML = "";
+  $("footballPitch").innerHTML = "";
+  $("benchList").innerHTML = "";
+  $("squadStatsBox").innerHTML = "";
+  $("tacticalEffects").innerHTML = "";
+  $("tacticalBreakdown").innerHTML = "";
+  $("liveTable").innerHTML = "";
 }
 
 function clearMultiplayerSession() {
@@ -794,9 +888,6 @@ function applyMultiplayerSnapshot(snapshot) {
     snapshot.status === "countdown" ? renderCountdownAuction() : renderGame();
   } else if (snapshot.status === "squad") {
     if (state.view !== "squad") showView("squad");
-    if (document.activeElement !== $("tacticSelect")) {
-      $("tacticSelect").value = state.pendingTactic || getUser()?.tactic || "balanced";
-    }
     renderSquadBuilder();
   } else if (snapshot.status === "results") {
     if (snapshot.results) {
@@ -845,7 +936,11 @@ function renderNextLiveRound() {
       <strong>Giornata ${round.round}</strong>
       <div class="live-round-results">
         ${round.matches
-          .map((match) => `<span>${match.home} <strong>${match.homeGoals}-${match.awayGoals}</strong> ${match.away}</span>`)
+          .map((match) => {
+            const userName = getUser()?.name;
+            const isUserMatch = userName && (match.home === userName || match.away === userName);
+            return `<span class="${isUserMatch ? "live-user-match" : ""}">${match.home} <strong>${match.homeGoals}-${match.awayGoals}</strong> ${match.away}</span>`;
+          })
           .join("")}
       </div>
     </div>
@@ -864,8 +959,9 @@ function renderLiveTable(standings) {
     ${standings
       .map((manager, index) => {
         const isRealMultiplayer = state.mode === "multi" && !manager.isBot;
+        const isCurrentPlayer = manager.id === currentUserId() || manager.isUser;
         const rowStyle = isRealMultiplayer ? `style="--team-color:${manager.color || "#1e8e4d"}"` : "";
-        return `<div class="league-row ${isRealMultiplayer ? "real-player-row" : ""}" ${rowStyle}><span>${index + 1}</span><strong>${manager.name}</strong><span>${manager.stats.played}</span><strong>${manager.stats.points}</strong></div>`;
+        return `<div class="league-row ${isRealMultiplayer ? "real-player-row" : ""} ${isCurrentPlayer ? "live-user-row" : ""}" ${rowStyle}><span>${index + 1}</span><strong>${manager.name}${isCurrentPlayer ? ' <small class="you-label">TU</small>' : ""}</strong><span>${manager.stats.played}</span><strong>${manager.stats.points}</strong></div>`;
       })
       .join("")}
   `;
@@ -998,6 +1094,8 @@ function renderCountdownAuction() {
   $("currentLeader").textContent = "Countdown iniziale";
   $("auctionMessage").textContent = "L'asta iniziera appena finisce il countdown.";
   renderManagers();
+  renderMiniFormation(false);
+  renderSquad();
   document.querySelectorAll("[data-bid]").forEach((button) => {
     button.disabled = true;
   });
@@ -1063,7 +1161,7 @@ async function multiplayerReady() {
   try {
     const snapshot = await api(`/api/lobbies/${state.multiplayer.code}/ready`, {
       playerId: state.multiplayer.playerId,
-      tactic: state.pendingTactic || user?.tactic || $("tacticSelect").value,
+      tactic: state.pendingTactic || user?.tactic || "balanced",
       tacticalPlan: state.pendingTacticalPlan || user?.tacticalPlan,
       captainId: state.pendingCaptainId || user?.captainId,
       lineup: user?.lineup || {}
@@ -1384,19 +1482,7 @@ function ensureLineupAssignments(manager) {
 function effectiveOverall(player, slotRole) {
   if (!player) return 0;
   if (player.role === slotRole) return player.overall;
-  const compatible = {
-    TS: ["DC", "AS"],
-    TD: ["DC", "AD"],
-    DC: ["TS", "TD", "MED"],
-    MED: ["CC", "DC"],
-    CC: ["MED", "COC"],
-    COC: ["CC", "ATT"],
-    AS: ["AD", "ATT", "TS"],
-    AD: ["AS", "ATT", "TD"],
-    ATT: ["AS", "AD", "COC"],
-    POR: []
-  };
-  return Math.max(45, player.overall - (compatible[player.role]?.includes(slotRole) ? 5 : 12));
+  return Math.max(45, player.overall - (compatibleRoleMoves[player.role]?.includes(slotRole) ? 5 : 12));
 }
 
 function renderSquadStats(lineup) {
@@ -1407,18 +1493,67 @@ function renderSquadStats(lineup) {
   };
   const starters = lineup.starters.filter((slot) => slot.player);
   const bonuses = starBonusesByReparto(starters);
+  const user = getUser();
+  const tacticEffects = tacticalPlanEffects(user?.tacticalPlan, user?.tactic || "balanced");
+  const chemistry = teamChemistry(starters);
+  const chemistryMultiplier = chemistrySimulationMultiplier(chemistry.score);
+  const baseTotalWeight = starters.reduce((sum, slot) => sum + effectiveOverall(slot.player, slot.role), 0);
+  const tacticAverageMultiplier = baseTotalWeight
+    ? starters.reduce((sum, slot) => sum + effectiveOverall(slot.player, slot.role) * tacticEffects[repartoForRole(slot.role)], 0) / baseTotalWeight
+    : 1;
   const values = Object.entries(groups).map(([label, group]) => {
     const players = starters.filter((slot) => group.roles.includes(slot.role));
     const rawAverage = players.length ? players.reduce((sum, slot) => sum + effectiveOverall(slot.player, slot.role), 0) / players.length : 0;
-    const avg = Math.round(rawAverage * (1 + bonuses[group.key]));
-    const bonusLabel = bonuses[group.key] ? ` +${Math.round(bonuses[group.key] * 100)}%` : "";
-    return { label: `${label}${bonusLabel}`, avg };
+    const tacticBonus = tacticEffects[group.key] - 1;
+    const combinedMultiplier = (1 + bonuses[group.key]) * tacticEffects[group.key];
+    const avg = Math.round(rawAverage * combinedMultiplier);
+    return { label, key: group.key, avg, tacticBonus, starBonus: bonuses[group.key], totalBonus: combinedMultiplier - 1 };
   });
-  const totalAvg = starters.length
-    ? Math.round(starters.reduce((sum, slot) => sum + effectiveOverall(slot.player, slot.role) * (1 + bonuses[repartoForRole(slot.role)]), 0) / starters.length)
-    : 0;
-  $("squadStatsBox").innerHTML = [...values, { label: "Media 11", avg: totalAvg }]
-    .map((item) => `<div class="squad-stat"><span>${item.label}</span><strong>${item.avg}</strong></div>`)
+  const appliedTotalWeight = starters.reduce((sum, slot) => {
+        const reparto = repartoForRole(slot.role);
+        return sum + effectiveOverall(slot.player, slot.role) * (1 + bonuses[reparto]) * tacticEffects[reparto];
+      }, 0);
+  const totalAvg = starters.length ? Math.round(appliedTotalWeight / starters.length) : 0;
+  const totalAverageBonus = baseTotalWeight ? appliedTotalWeight / baseTotalWeight - 1 : 0;
+  const formatBonus = (value) => {
+    const rounded = Math.round(value * 1000) / 10;
+    return `${rounded > 0 ? "+" : ""}${rounded}%`;
+  };
+  const shotsBonus = tacticEffects.shots - 1;
+  const statItems = [
+    ...values,
+    { label: "Tiri", key: "shots", avg: formatBonus(shotsBonus), tacticBonus: shotsBonus, starBonus: 0, totalBonus: shotsBonus },
+    { label: "Intesa", key: "chemistry", avg: starters.length === 11 ? chemistry.score : "--", chemistry, chemistryMultiplier, complete: starters.length === 11 },
+    { label: "Media 11", key: "average", avg: totalAvg, tacticBonus: tacticAverageMultiplier - 1, starBonus: 0, totalBonus: totalAverageBonus }
+  ];
+  $("squadStatsBox").innerHTML = statItems
+    .map((item) => {
+      if (item.key === "chemistry") {
+        if (!item.complete) {
+          return `<div class="squad-stat squad-stat-chemistry"><span>${item.label}</span><strong>--</strong><div class="chemistry-meter"><i style="width:0%"></i></div><small>Completa gli 11 titolari per calcolare l'intesa.</small></div>`;
+        }
+        const simulationEffect = item.chemistryMultiplier - 1;
+        const simulationLabel = simulationEffect === 0 ? "Simulazione neutra" : `Simulazione ${formatBonus(simulationEffect)}`;
+        return `<div class="squad-stat squad-stat-chemistry"><span>${item.label}</span><strong>${item.avg}</strong><div class="chemistry-meter"><i style="width:${Math.max(0, Math.min(100, (item.avg - 70) / 42 * 100))}%"></i></div><small>Ruoli -${item.chemistry.rolePenalty} · Nazioni +${item.chemistry.nationBonus} · ${simulationLabel}</small></div>`;
+      }
+      const contributions = Object.entries(tacticEffects.plan).map(([group, choice]) => {
+        const option = tacticalOptions[group][choice];
+        let contribution = item.key === "average" ? 0 : option[item.key] - 1;
+        if (item.key === "average") {
+          contribution = baseTotalWeight
+            ? starters.reduce((sum, slot) => sum + effectiveOverall(slot.player, slot.role) * option[repartoForRole(slot.role)], 0) / baseTotalWeight - 1
+            : 0;
+        }
+        const meta = tacticalGroupMeta[group];
+        const tone = contribution > 0 ? "positive" : contribution < 0 ? "negative" : "neutral";
+        const absoluteValue = Math.abs(Math.round(contribution * 1000) / 10);
+        return `<span class="tactic-bonus-chip tactic-chip-${meta.className} ${tone}" title="${tacticalChoiceLabels[group].label}: ${tacticalChoiceLabels[group][choice]}">${meta.short} ${absoluteValue}%</span>`;
+      }).join("");
+      const tacticLabel = `Tattica totale ${formatBonus(item.tacticBonus)}`;
+      const starLabel = item.starBonus ? ` · Star +${Math.round(item.starBonus * 100)}%` : "";
+      const totalLabel = item.key !== "shots" ? ` · Applicato ${formatBonus(item.totalBonus)}` : "";
+      return `<div class="squad-stat squad-stat-${item.key}"><span>${item.label}</span><strong>${item.avg}</strong><div class="squad-stat-bonuses">${contributions}</div><small>${tacticLabel}${starLabel}${totalLabel}</small></div>`;
+    })
     .join("");
 }
 
@@ -1445,11 +1580,32 @@ function renderTacticalControls(manager, lineup) {
     : `<option value="">Completa la formazione</option>`;
   const profile = managerTacticProfile(manager, starters);
   $("tacticalCompatibility").innerHTML = `Compatibilita <strong>${profile.compatibility}/100</strong>`;
+  const effects = tacticalPlanEffects(manager.tacticalPlan, manager.tactic);
+  const effectItems = [
+    { key: "attack", label: "Attacco", value: effects.attack, help: "pericolosita offensiva" },
+    { key: "midfield", label: "Centrocampo", value: effects.midfield, help: "controllo della gara" },
+    { key: "defense", label: "Difesa", value: effects.defense, help: "protezione della porta" },
+    { key: "shots", label: "Tiri", value: effects.shots, help: "volume delle conclusioni" }
+  ];
+  $("tacticalEffects").innerHTML = effectItems.map((item) => {
+    const percentage = Math.round((item.value - 1) * 1000) / 10;
+    const tone = percentage === 0 ? "neutral" : percentage > 0 ? "positive" : "negative";
+    const value = percentage === 0 ? "0% neutro" : `${percentage > 0 ? "+" : ""}${percentage}%`;
+    return `<div class="tactical-effect tactical-effect-${item.key} ${tone}"><span>${item.label}</span><strong>${value}</strong><small>${item.help}</small></div>`;
+  }).join("");
+  const metricLabels = { attack: "Attacco", midfield: "Centrocampo", defense: "Difesa", shots: "Tiri" };
+  $("tacticalBreakdown").innerHTML = Object.entries(effects.plan).map(([group, choice]) => {
+    const option = tacticalOptions[group][choice];
+    const deltas = Object.entries(metricLabels).map(([key, label]) => ({ label, value: Math.round((option[key] - 1) * 1000) / 10 }));
+    const pros = deltas.filter((item) => item.value > 0).map((item) => `${item.label} +${item.value}%`).join(", ");
+    const cons = deltas.filter((item) => item.value < 0).map((item) => `${item.label} ${item.value}%`).join(", ");
+    return `<div class="tactical-breakdown-row tactic-group-${tacticalGroupMeta[group].className}"><strong>${tacticalChoiceLabels[group].label}</strong><span>${tacticalChoiceLabels[group][choice]}</span><span class="tactical-pro">${pros}</span><span class="tactical-con">${cons}</span></div>`;
+  }).join("");
   const plan = manager.tacticalPlan;
   const risks = [];
   if (plan.mentality === "offensive") risks.push("piu occasioni, maggiore esposizione");
   if (plan.mentality === "cautious") risks.push("difesa protetta, meno presenza offensiva");
-  if (plan.pressing === "high") risks.push("recuperi alti, piu cartellini");
+  if (plan.pressing === "high") risks.push("recuperi alti, maggiore spazio alle spalle");
   if (plan.defensiveLine === "high") risks.push("campo corto, rischio contropiede");
   if (plan.defensiveLine === "low") risks.push("blocco compatto, uscita piu lenta");
   $("tacticalSummary").textContent = risks.length ? risks.join(". ") : "Assetto equilibrato senza rischi tattici marcati.";
@@ -1509,18 +1665,6 @@ function movePlayerToSlot(playerId, slotId) {
   saveLineupDraft();
 }
 
-function updateSquadTactic() {
-  const user = getUser();
-  if (!user) return;
-  user.tactic = $("tacticSelect").value;
-  user.tacticalPlan = { ...tacticalPresets[user.tactic] };
-  state.pendingTacticalPlan = { ...user.tacticalPlan };
-  state.pendingTactic = user.tactic;
-  user.ready = false;
-  renderSquadBuilder();
-  saveLineupDraft();
-}
-
 function updateAdvancedTactics() {
   const user = getUser();
   if (!user) return;
@@ -1553,7 +1697,7 @@ async function saveLineupDraft() {
   try {
     const snapshot = await api(`/api/lobbies/${state.multiplayer.code}/lineup`, {
       playerId: state.multiplayer.playerId,
-      tactic: state.pendingTactic || user.tactic || $("tacticSelect").value,
+      tactic: state.pendingTactic || user.tactic || "balanced",
       tacticalPlan: state.pendingTacticalPlan || user.tacticalPlan,
       captainId: state.pendingCaptainId || user.captainId,
       lineup: user.lineup || {}
@@ -1626,11 +1770,11 @@ function renderManagers() {
     .join("");
 }
 
-function renderMiniFormation() {
+function renderMiniFormation(showAuctionPreview = true) {
   const user = getUser();
   if (!user || !state.config) return;
 
-  const player = currentPlayer();
+  const player = showAuctionPreview ? currentPlayer() : null;
   const lineup = buildLineup(user);
   const previewIndex = player ? lineup.starters.findIndex((slot) => !slot.player && slot.role === player.role) : -1;
   const isUseful = previewIndex !== -1;
@@ -1720,28 +1864,24 @@ function tacticalCompatibility(manager, starters, captain) {
 
 function managerTacticProfile(manager, starters) {
   const plan = normalizeTacticalPlan(manager.tacticalPlan, manager.tactic);
-  const profile = { attack: 1, defense: 1, shots: 1, cards: 1, penaltyMiss: 1 };
-  Object.entries(plan).forEach(([group, value]) => {
-    const option = tacticalOptions[group]?.[value];
-    if (!option) return;
-    ["attack", "defense", "shots", "cards"].forEach((key) => { profile[key] *= option[key]; });
-  });
+  const profile = tacticalPlanEffects(plan, manager.tactic);
   const captain = resolveCaptain(manager, starters);
   const compatibility = tacticalCompatibility(manager, starters, captain);
   const execution = 0.97 + (compatibility - 70) * 0.0015;
   const leadershipBoost = captain ? 1 + Math.max(0, captain.leadership - 60) * 0.0006 : 1;
   profile.attack *= execution * leadershipBoost;
+  profile.midfield *= execution * leadershipBoost;
   profile.defense *= execution * leadershipBoost;
   if (captain?.style === "commander") profile.defense *= 1.015;
   if (["motivator", "driver"].includes(captain?.style)) profile.attack *= captain.style === "motivator" ? 1.015 : 1.012;
   if (captain?.style === "calm") {
-    profile.cards *= 0.84;
     profile.defense *= 1.008;
+    profile.midfield *= 1.008;
   }
   profile.attack = Math.max(0.94, Math.min(1.08, profile.attack));
+  profile.midfield = Math.max(0.94, Math.min(1.08, profile.midfield));
   profile.defense = Math.max(0.94, Math.min(1.08, profile.defense));
-  profile.shots = Math.max(0.82, Math.min(1.18, profile.shots));
-  profile.cards = Math.max(0.65, Math.min(1.45, profile.cards));
+  profile.shots = Math.max(0.94, Math.min(1.06, profile.shots));
   return { ...profile, plan, compatibility, captain };
 }
 
@@ -1776,17 +1916,20 @@ function teamStrength(manager) {
   const keeper = keeperSlot?.effective || defenseLine;
   const individualPeak = Math.max(...attackSlots.map((slot) => slot.effective), avg);
   const coverage = formationCoverage(starters.map((slot) => slot.player));
-  const base = (avg * 0.76 + depth * 0.09 + individualPeak * 0.15) * (0.86 + coverage * 0.14);
+  const chemistry = teamChemistry(starters);
+  const chemistryMultiplier = chemistrySimulationMultiplier(chemistry.score);
+  const base = (avg * 0.76 + depth * 0.09 + individualPeak * 0.15) * (0.86 + coverage * 0.14) * chemistryMultiplier;
   const tactic = managerTacticProfile(manager, starters);
   const attackStrength = attackLine * 0.62 + midfieldLine * 0.23 + individualPeak * 0.15;
   const defenseStrength = defenseLine * 0.62 + keeper * 0.25 + midfieldLine * 0.13;
   return {
-    attack: attackStrength * (1 + repartoBonuses.attack) * tactic.attack,
-    midfield: midfieldLine * (1 + repartoBonuses.midfield),
-    defense: defenseStrength * (1 + repartoBonuses.defense) * tactic.defense,
-    keeper: keeper * (1 + repartoBonuses.defense),
+    attack: attackStrength * (1 + repartoBonuses.attack) * tactic.attack * chemistryMultiplier,
+    midfield: midfieldLine * (1 + repartoBonuses.midfield) * tactic.midfield * chemistryMultiplier,
+    defense: defenseStrength * (1 + repartoBonuses.defense) * tactic.defense * chemistryMultiplier,
+    keeper: keeper * (1 + repartoBonuses.defense) * chemistryMultiplier,
     base,
-    tactic
+    tactic,
+    chemistry
   };
 }
 
@@ -1958,8 +2101,7 @@ function simulateSeason() {
     return;
   }
 
-  state.config.tactic = $("tacticSelect").value;
-  getUser().tactic = state.config.tactic;
+  state.config.tactic = getUser().tactic || "balanced";
   getUser().tacticalPlan = normalizeTacticalPlan(getUser().tacticalPlan, getUser().tactic);
   state.managers.filter((manager) => !manager.isUser).forEach((manager) => fillVacantSlots(manager));
   fillLeagueToTwentyTeams();
@@ -2180,7 +2322,6 @@ $("difficultySelect").addEventListener("change", applyDifficultyDefaults);
 $("creditsInput").addEventListener("input", updateSetupSummary);
 $("auctionPlayersInput").addEventListener("input", updateSetupSummary);
 $("aiPlayersInput").addEventListener("input", updateSetupSummary);
-$("tacticSelect").addEventListener("change", updateSquadTactic);
 [$("mentalitySelect"), $("buildupSelect"), $("pressingSelect"), $("defensiveLineSelect")].forEach((control) => control.addEventListener("change", updateAdvancedTactics));
 $("captainSelect").addEventListener("change", updateCaptain);
 $("autoFillBtn").addEventListener("click", () => {
