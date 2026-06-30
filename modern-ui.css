@@ -51,6 +51,19 @@ const roleWeights = {
   ATT: { goals: 1.65, assists: 0.5 }
 };
 
+const compatibleRoleMoves = {
+  TS: ["DC", "AS"],
+  TD: ["DC", "AD"],
+  DC: ["TS", "TD", "MED"],
+  MED: ["CC", "DC"],
+  CC: ["MED", "COC"],
+  COC: ["CC", "ATT"],
+  AS: ["AD", "ATT", "TS"],
+  AD: ["AS", "ATT", "TD"],
+  ATT: ["AS", "AD", "COC"],
+  POR: []
+};
+
 const generatedNames = {
   first: ["Alex", "Marco", "Leo", "Samir", "Diego", "Nico", "Lucas", "Enzo", "Ivan", "Noah", "Milo", "Toni"],
   last: ["Rossi", "Costa", "Ferreira", "Marin", "Silva", "Moretti", "Kovac", "Ramos", "Greco", "Conti", "Bianchi", "Santos"]
@@ -267,6 +280,42 @@ function repartoForRole(role) {
   if (["POR", "DC", "TS", "TD"].includes(role)) return "defense";
   if (["MED", "CC", "COC"].includes(role)) return "midfield";
   return "attack";
+}
+
+function roleChemistryPenalty(player, slotRole) {
+  if (!player || player.role === slotRole) return 0;
+  if (compatibleRoleMoves[player.role]?.includes(slotRole)) return 3;
+  if (player.role === "POR" || slotRole === "POR") return 12;
+  return 8;
+}
+
+function nationalityChemistryBonus(starters) {
+  const counts = {};
+  starters.forEach((slot) => {
+    const player = slot.player;
+    if (!player?.nation || player.generated || player.nation === "Academy") return;
+    counts[player.nation] = (counts[player.nation] || 0) + 1;
+  });
+  const bonus = Object.values(counts).reduce((sum, count) => {
+    if (count < 2) return sum;
+    if (count === 2) return sum + 1;
+    if (count === 3) return sum + 2;
+    return sum + Math.min(12, (count - 2) * 2);
+  }, 0);
+  return Math.min(12, bonus);
+}
+
+function teamChemistry(starters) {
+  const rolePenalty = starters.reduce((sum, slot) => sum + roleChemistryPenalty(slot.player, slot.role), 0);
+  const nationBonus = nationalityChemistryBonus(starters);
+  const score = Math.max(70, Math.min(112, 100 - rolePenalty + nationBonus));
+  return { score, rolePenalty, nationBonus };
+}
+
+function chemistrySimulationMultiplier(score) {
+  if (score > 100) return Math.min(1.03, 1 + (score - 100) * 0.0025);
+  if (score < 95) return Math.max(0.9, 1 - (95 - score) * 0.005);
+  return 1;
 }
 
 function starBonusesByReparto(starters) {
@@ -1433,19 +1482,7 @@ function ensureLineupAssignments(manager) {
 function effectiveOverall(player, slotRole) {
   if (!player) return 0;
   if (player.role === slotRole) return player.overall;
-  const compatible = {
-    TS: ["DC", "AS"],
-    TD: ["DC", "AD"],
-    DC: ["TS", "TD", "MED"],
-    MED: ["CC", "DC"],
-    CC: ["MED", "COC"],
-    COC: ["CC", "ATT"],
-    AS: ["AD", "ATT", "TS"],
-    AD: ["AS", "ATT", "TD"],
-    ATT: ["AS", "AD", "COC"],
-    POR: []
-  };
-  return Math.max(45, player.overall - (compatible[player.role]?.includes(slotRole) ? 5 : 12));
+  return Math.max(45, player.overall - (compatibleRoleMoves[player.role]?.includes(slotRole) ? 5 : 12));
 }
 
 function renderSquadStats(lineup) {
@@ -1458,6 +1495,8 @@ function renderSquadStats(lineup) {
   const bonuses = starBonusesByReparto(starters);
   const user = getUser();
   const tacticEffects = tacticalPlanEffects(user?.tacticalPlan, user?.tactic || "balanced");
+  const chemistry = teamChemistry(starters);
+  const chemistryMultiplier = chemistrySimulationMultiplier(chemistry.score);
   const baseTotalWeight = starters.reduce((sum, slot) => sum + effectiveOverall(slot.player, slot.role), 0);
   const tacticAverageMultiplier = baseTotalWeight
     ? starters.reduce((sum, slot) => sum + effectiveOverall(slot.player, slot.role) * tacticEffects[repartoForRole(slot.role)], 0) / baseTotalWeight
@@ -1484,10 +1523,19 @@ function renderSquadStats(lineup) {
   const statItems = [
     ...values,
     { label: "Tiri", key: "shots", avg: formatBonus(shotsBonus), tacticBonus: shotsBonus, starBonus: 0, totalBonus: shotsBonus },
+    { label: "Intesa", key: "chemistry", avg: starters.length === 11 ? chemistry.score : "--", chemistry, chemistryMultiplier, complete: starters.length === 11 },
     { label: "Media 11", key: "average", avg: totalAvg, tacticBonus: tacticAverageMultiplier - 1, starBonus: 0, totalBonus: totalAverageBonus }
   ];
   $("squadStatsBox").innerHTML = statItems
     .map((item) => {
+      if (item.key === "chemistry") {
+        if (!item.complete) {
+          return `<div class="squad-stat squad-stat-chemistry"><span>${item.label}</span><strong>--</strong><div class="chemistry-meter"><i style="width:0%"></i></div><small>Completa gli 11 titolari per calcolare l'intesa.</small></div>`;
+        }
+        const simulationEffect = item.chemistryMultiplier - 1;
+        const simulationLabel = simulationEffect === 0 ? "Simulazione neutra" : `Simulazione ${formatBonus(simulationEffect)}`;
+        return `<div class="squad-stat squad-stat-chemistry"><span>${item.label}</span><strong>${item.avg}</strong><div class="chemistry-meter"><i style="width:${Math.max(0, Math.min(100, (item.avg - 70) / 42 * 100))}%"></i></div><small>Ruoli -${item.chemistry.rolePenalty} · Nazioni +${item.chemistry.nationBonus} · ${simulationLabel}</small></div>`;
+      }
       const contributions = Object.entries(tacticEffects.plan).map(([group, choice]) => {
         const option = tacticalOptions[group][choice];
         let contribution = item.key === "average" ? 0 : option[item.key] - 1;
@@ -1868,17 +1916,20 @@ function teamStrength(manager) {
   const keeper = keeperSlot?.effective || defenseLine;
   const individualPeak = Math.max(...attackSlots.map((slot) => slot.effective), avg);
   const coverage = formationCoverage(starters.map((slot) => slot.player));
-  const base = (avg * 0.76 + depth * 0.09 + individualPeak * 0.15) * (0.86 + coverage * 0.14);
+  const chemistry = teamChemistry(starters);
+  const chemistryMultiplier = chemistrySimulationMultiplier(chemistry.score);
+  const base = (avg * 0.76 + depth * 0.09 + individualPeak * 0.15) * (0.86 + coverage * 0.14) * chemistryMultiplier;
   const tactic = managerTacticProfile(manager, starters);
   const attackStrength = attackLine * 0.62 + midfieldLine * 0.23 + individualPeak * 0.15;
   const defenseStrength = defenseLine * 0.62 + keeper * 0.25 + midfieldLine * 0.13;
   return {
-    attack: attackStrength * (1 + repartoBonuses.attack) * tactic.attack,
-    midfield: midfieldLine * (1 + repartoBonuses.midfield) * tactic.midfield,
-    defense: defenseStrength * (1 + repartoBonuses.defense) * tactic.defense,
-    keeper: keeper * (1 + repartoBonuses.defense),
+    attack: attackStrength * (1 + repartoBonuses.attack) * tactic.attack * chemistryMultiplier,
+    midfield: midfieldLine * (1 + repartoBonuses.midfield) * tactic.midfield * chemistryMultiplier,
+    defense: defenseStrength * (1 + repartoBonuses.defense) * tactic.defense * chemistryMultiplier,
+    keeper: keeper * (1 + repartoBonuses.defense) * chemistryMultiplier,
     base,
-    tactic
+    tactic,
+    chemistry
   };
 }
 

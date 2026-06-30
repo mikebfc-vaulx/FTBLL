@@ -750,6 +750,10 @@ select option {
   color: color-mix(in srgb, var(--stat-color) 78%, #c8d5ce);
 }
 
+.chemistry-meter {
+  background: color-mix(in srgb, var(--stat-color) 16%, #07100b);
+}
+
 .tactic-tab {
   border-color: color-mix(in srgb, var(--tactic-color) 42%, var(--ui-line));
   border-top-color: var(--tactic-color);

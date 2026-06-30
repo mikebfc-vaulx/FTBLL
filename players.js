@@ -6,8 +6,8 @@
     <title>FTBALL Friends</title>
     <meta name="theme-color" content="#07110d" />
     <link rel="icon" href="ftball-logo.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=14" />
-    <link rel="stylesheet" href="modern-ui.css?v=14" />
+    <link rel="stylesheet" href="styles.css?v=15" />
+    <link rel="stylesheet" href="modern-ui.css?v=15" />
   </head>
   <body data-view="home">
     <main class="app-shell">
@@ -391,7 +391,7 @@
         </div>
       </section>
     </main>
-    <script src="players.js?v=14"></script>
-    <script src="app.js?v=14"></script>
+    <script src="players.js?v=15"></script>
+    <script src="app.js?v=15"></script>
   </body>
 </html>
