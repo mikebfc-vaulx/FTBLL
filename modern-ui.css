@@ -608,6 +608,45 @@ select option {
   box-shadow: inset 4px 0 0 var(--ui-green), 0 6px 16px rgba(0, 0, 0, 0.18);
 }
 
+.account-stat-card,
+.profile-editor,
+.recent-match-card {
+  border-color: var(--ui-line);
+  background: var(--ui-panel-2);
+  color: var(--ui-text);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+}
+
+.home-profile-card {
+  border-color: var(--ui-line);
+  background: linear-gradient(135deg, rgba(30, 201, 120, 0.12), rgba(242, 201, 76, 0.08));
+}
+
+.manager-profile-head strong {
+  color: var(--ui-gold);
+}
+
+.avatar-choice {
+  background: #101a14;
+}
+
+.avatar-choice.selected {
+  border-color: var(--ui-gold);
+  box-shadow: 0 0 0 3px rgba(242, 201, 76, 0.16);
+}
+
+.account-stat-card > strong {
+  color: var(--ui-green);
+}
+
+.account-stat-card div {
+  background: #101a14;
+}
+
+.recent-match-card {
+  border-left-color: var(--ui-gold);
+}
+
 .live-feed-panel {
   background: #0c1410;
 }

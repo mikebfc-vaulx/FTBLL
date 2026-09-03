@@ -1,10 +1,14 @@
 ﻿const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const players = require("./players");
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+const STATS_FILE = process.env.STATS_FILE || path.join(ROOT, "stats-store.json");
+const AVATARS = ["avatar-1.svg", "avatar-2.svg", "avatar-3.svg", "avatar-4.svg", "avatar-5.svg", "avatar-6.svg"];
 const LOBBY_TTL_MS = Number(process.env.LOBBY_TTL_MS || 1000 * 60 * 60 * 3);
 const FINISHED_LOBBY_TTL_MS = Number(process.env.FINISHED_LOBBY_TTL_MS || 1000 * 60 * 2);
 const CLEANUP_INTERVAL_MS = Number(process.env.CLEANUP_INTERVAL_MS || 1000 * 60 * 10);
@@ -122,6 +126,7 @@ const generatedNames = {
 };
 
 const lobbies = new Map();
+const sessions = new Map();
 const PLAYER_INACTIVE_MS = Number(process.env.PLAYER_INACTIVE_MS || 1000 * 60 * 2);
 const colors = ["#1e8e4d", "#2f80ed", "#d64545", "#f2a900", "#9b51e0", "#00a6a6", "#f26b38", "#5b6ee1"];
 const botTeamNames = [
@@ -188,6 +193,144 @@ function readBody(req) {
       }
     });
   });
+}
+
+function hashUserId(value) {
+  return crypto.createHash("sha256").update(`${value}:${GOOGLE_CLIENT_ID || "ftball"}`).digest("hex");
+}
+
+function publicNameFromHash(hash) {
+  return `Manager-${hash.slice(0, 6).toUpperCase()}`;
+}
+
+function sanitizeDisplayName(name, fallback = "Manager") {
+  return String(name || fallback).replace(/[<>]/g, "").trim().slice(0, 18) || fallback;
+}
+
+function sanitizeAvatar(avatar) {
+  const value = String(avatar || "");
+  return AVATARS.includes(value) ? value : AVATARS[0];
+}
+
+function createSession(user) {
+  const token = crypto.randomBytes(24).toString("hex");
+  sessions.set(token, { ...user, avatar: sanitizeAvatar(user.avatar), createdAt: now() });
+  return token;
+}
+
+function userFromRequest(req) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  return token ? sessions.get(token) || null : null;
+}
+
+function defaultUserStats() {
+  return {
+    profile: { displayName: "Manager", avatar: AVATARS[0] },
+    single: { played: 0, wins: 0, podiums: 0, points: 0, gf: 0, ga: 0, goals: 0, assists: 0, bestFinish: null },
+    online: { played: 0, wins: 0, podiums: 0, points: 0, gf: 0, ga: 0, goals: 0, assists: 0, bestFinish: null },
+    recent: []
+  };
+}
+
+function readStatsStore() {
+  try {
+    return JSON.parse(fs.readFileSync(STATS_FILE, "utf8"));
+  } catch {
+    return { users: {} };
+  }
+}
+
+function writeStatsStore(store) {
+  fs.writeFileSync(STATS_FILE, JSON.stringify(store, null, 2));
+}
+
+function statsForUser(userId) {
+  const store = readStatsStore();
+  const stats = store.users[userId] || defaultUserStats();
+  return { ...defaultUserStats(), ...stats, profile: { ...defaultUserStats().profile, ...(stats.profile || {}) } };
+}
+
+function profileForUser(user) {
+  const stats = statsForUser(user.id);
+  return {
+    id: user.id,
+    publicName: stats.profile.displayName || user.publicName,
+    avatar: sanitizeAvatar(stats.profile.avatar)
+  };
+}
+
+function updateUserProfile(user, body) {
+  const store = readStatsStore();
+  const userStats = { ...defaultUserStats(), ...(store.users[user.id] || {}) };
+  userStats.profile = {
+    displayName: sanitizeDisplayName(body.displayName, user.publicName),
+    avatar: sanitizeAvatar(body.avatar)
+  };
+  store.users[user.id] = userStats;
+  writeStatsStore(store);
+  user.publicName = userStats.profile.displayName;
+  user.avatar = userStats.profile.avatar;
+  return { user: profileForUser(user), stats: statsForUser(user.id) };
+}
+
+function recordUserStats(user, body) {
+  const store = readStatsStore();
+  const userStats = { ...defaultUserStats(), ...(store.users[user.id] || {}) };
+  const mode = body.mode === "online" ? "online" : "single";
+  const bucket = userStats[mode];
+  const finish = clamp(body.position, 1, 99);
+  const teams = clamp(body.teams, 1, 99);
+  bucket.played += 1;
+  bucket.wins += finish === 1 ? 1 : 0;
+  bucket.podiums += finish <= 3 ? 1 : 0;
+  bucket.points += clamp(body.points, 0, 200);
+  bucket.gf += clamp(body.gf, 0, 200);
+  bucket.ga += clamp(body.ga, 0, 200);
+  bucket.goals += clamp(body.playerGoals, 0, 300);
+  bucket.assists += clamp(body.playerAssists, 0, 300);
+  bucket.bestFinish = bucket.bestFinish == null ? finish : Math.min(bucket.bestFinish, finish);
+  userStats.recent = [
+    {
+      id: crypto.randomBytes(8).toString("hex"),
+      date: new Date().toISOString(),
+      mode,
+      position: finish,
+      teams,
+      points: clamp(body.points, 0, 200),
+      gf: clamp(body.gf, 0, 200),
+      ga: clamp(body.ga, 0, 200),
+      champion: String(body.champion || "").slice(0, 28)
+    },
+    ...userStats.recent
+  ].slice(0, 12);
+  store.users[user.id] = userStats;
+  writeStatsStore(store);
+  return userStats;
+}
+
+function decodeJwtPayload(token) {
+  const payload = String(token || "").split(".")[1];
+  if (!payload) return null;
+  const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+  try {
+    return JSON.parse(Buffer.from(normalized, "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function verifyGoogleCredential(credential) {
+  if (!GOOGLE_CLIENT_ID) throw new Error("Google login non configurato");
+  const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+  if (!response.ok) throw new Error("Token Google non valido");
+  const verified = await response.json();
+  if (verified.aud !== GOOGLE_CLIENT_ID) throw new Error("Client Google non valido");
+  const payload = decodeJwtPayload(credential) || verified;
+  const sub = verified.sub || payload.sub;
+  if (!sub) throw new Error("Identificativo Google mancante");
+  const id = hashUserId(sub);
+  return profileForUser({ id, publicName: publicNameFromHash(id), avatar: AVATARS[0] });
 }
 
 function clamp(value, min, max) {
@@ -342,10 +485,11 @@ function nextColor(lobby) {
   return colors.find((color) => !used.has(color)) || colors[Math.floor(Math.random() * colors.length)];
 }
 
-function newPlayer(name, credits, formation, isHost = false, color = colors[0]) {
+function newPlayer(name, credits, formation, isHost = false, color = colors[0], avatar = AVATARS[0]) {
   return {
     id: Math.random().toString(36).slice(2, 12),
-    name: String(name || "Manager").slice(0, 18),
+    name: sanitizeDisplayName(name),
+    avatar: sanitizeAvatar(avatar),
     credits,
     squad: [],
     lineup: {},
@@ -521,12 +665,26 @@ function fillVacancies(lobby, playerId) {
       if (player) manager.lineup[slot.id] = player.uid || player.name;
     });
   }
-  const starters = buildLineup(manager, formation);
   const slots = getLineupSlots(formation);
-  const missing = [];
-  starters.forEach((player, index) => {
-    if (!player) missing.push(slots[index]);
+  let starters = buildLineup(manager, formation);
+  let missing = slots.filter((slot, index) => !starters[index]);
+  const used = new Set(starters.filter(Boolean).map((player) => player.uid || player.name));
+  const available = manager.squad
+    .filter((player) => !used.has(player.uid || player.name))
+    .sort((a, b) => b.overall - a.overall);
+
+  missing.forEach((slot) => {
+    const index = available.findIndex((player) => player.role === slot.role);
+    const compatibleIndex = index === -1
+      ? available.findIndex((player) => compatibleRoleMoves[player.role]?.includes(slot.role))
+      : index;
+    if (compatibleIndex === -1) return;
+    const [player] = available.splice(compatibleIndex, 1);
+    manager.lineup[slot.id] = player.uid || player.name;
   });
+
+  starters = buildLineup(manager, formation);
+  missing = slots.filter((slot, index) => !starters[index]);
   missing.forEach((slot) => {
     const player = makeGenerated(slot.role);
     manager.squad.push(player);
@@ -633,7 +791,7 @@ function addSimulationBots(lobby) {
   if (lobby.botsAdded) return;
   const botCount = clamp(lobby.settings.botCount || 0, 0, 20);
   for (let i = 0; i < botCount; i += 1) {
-    const bot = newPlayer(botTeamNames[i] || `Bot ${i + 1}`, lobby.settings.credits, lobby.settings.formation, false, colors[i % colors.length]);
+    const bot = newPlayer(botTeamNames[i] || `Bot ${i + 1}`, lobby.settings.credits, lobby.settings.formation, false, colors[i % colors.length], AVATARS[i % AVATARS.length]);
     bot.id = `bot-${i + 1}-${Math.random().toString(36).slice(2, 7)}`;
     bot.isBot = true;
     bot.ready = true;
@@ -881,6 +1039,35 @@ function updateStats(manager, gf, ga) {
 
 async function handleApi(req, res, parts, url) {
   const body = await readBody(req);
+  if (req.method === "GET" && parts[1] === "config") {
+    return json(res, 200, { googleClientId: GOOGLE_CLIENT_ID, googleLoginEnabled: Boolean(GOOGLE_CLIENT_ID), avatars: AVATARS });
+  }
+  if (req.method === "POST" && parts[1] === "auth" && parts[2] === "google") {
+    try {
+      const user = await verifyGoogleCredential(body.credential);
+      const token = createSession(user);
+      return json(res, 200, { token, user });
+    } catch (error) {
+      return json(res, 401, { error: error.message });
+    }
+  }
+  if (req.method === "POST" && parts[1] === "auth" && parts[2] === "logout") {
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+    if (token) sessions.delete(token);
+    return json(res, 200, { ok: true });
+  }
+  if (parts[1] === "stats") {
+    const user = userFromRequest(req);
+    if (!user) return json(res, 401, { error: "Login richiesto" });
+    if (req.method === "GET") return json(res, 200, { user: profileForUser(user), stats: statsForUser(user.id) });
+    if (req.method === "POST") return json(res, 200, { user, stats: recordUserStats(user, body) });
+  }
+  if (parts[1] === "profile") {
+    const user = userFromRequest(req);
+    if (!user) return json(res, 401, { error: "Login richiesto" });
+    if (req.method === "POST") return json(res, 200, updateUserProfile(user, body));
+  }
   if (req.method === "POST" && parts[1] === "lobbies" && parts.length === 2) {
     const settings = {
       credits: clamp(body.credits || 650, 250, 1200),
@@ -890,7 +1077,7 @@ async function handleApi(req, res, parts, url) {
       botDifficulty: botDifficultyRanges[body.botDifficulty] ? body.botDifficulty : "normal"
     };
     const lobbyCode = code();
-    const host = newPlayer(body.name, settings.credits, settings.formation, true, colors[0]);
+    const host = newPlayer(body.name, settings.credits, settings.formation, true, colors[0], body.avatar);
     const lobby = {
       code: lobbyCode,
       hostId: host.id,
@@ -918,10 +1105,23 @@ async function handleApi(req, res, parts, url) {
   if (req.method === "POST" && parts[3] === "join") {
     if (lobby.status !== "lobby") return json(res, 400, { error: "Asta gia iniziata" });
     const managerFormation = formationNeeds[body.formation] ? body.formation : lobby.settings.formation;
-    const manager = newPlayer(body.name, lobby.settings.credits, managerFormation, false, nextColor(lobby));
+    const manager = newPlayer(body.name, lobby.settings.credits, managerFormation, false, nextColor(lobby), body.avatar);
     lobby.managers.push(manager);
     lobby.log.push(`${manager.name} entra in lobby`);
     return json(res, 200, { code: lobby.code, playerId: manager.id });
+  }
+
+  if (req.method === "POST" && parts[3] === "leave") {
+    const leavingId = body.playerId;
+    if (lobby.status === "lobby") {
+      lobby.managers = lobby.managers.filter((manager) => manager.id !== leavingId || manager.isHost);
+      if (lobby.hostId === leavingId) {
+        lobbies.delete(lobby.code);
+        return json(res, 200, { closed: true });
+      }
+      lobby.log.push("Un giocatore ha lasciato la lobby");
+    }
+    return json(res, 200, { ok: true });
   }
 
   if (req.method === "GET" && parts.length === 3) {
@@ -971,6 +1171,8 @@ async function handleApi(req, res, parts, url) {
     if (!manager || lobby.status !== "lobby") return json(res, 400, { error: "Manager non valido" });
     const colorTaken = lobby.managers.some((item) => item.id !== manager.id && item.color === body.color);
     if (colors.includes(body.color) && !colorTaken) manager.color = body.color;
+    if (body.name) manager.name = sanitizeDisplayName(body.name, manager.name);
+    if (body.avatar) manager.avatar = sanitizeAvatar(body.avatar);
     if (formationNeeds[body.formation] && body.formation !== manager.formation) {
       manager.formation = body.formation;
       lobby.pool = buildBalancedAuctionPool(players, lobby.settings.rounds, lobby.managers.filter((item) => !item.isBot).map((item) => item.formation || lobby.settings.formation));

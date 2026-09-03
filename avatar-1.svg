@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Avatar capitano verde">
+  <rect width="96" height="96" rx="24" fill="#103d2b"/>
+  <circle cx="48" cy="34" r="17" fill="#ffd8aa"/>
+  <path d="M24 82c4-19 16-29 24-29s20 10 24 29" fill="#1ec978"/>
+  <path d="M31 32c5-14 28-16 34 0-10-5-22-5-34 0z" fill="#111"/>
+  <path d="M33 71h30" stroke="#f2c94c" stroke-width="6" stroke-linecap="round"/>
+</svg>

@@ -6,8 +6,9 @@
     <title>FTBALL Friends</title>
     <meta name="theme-color" content="#07110d" />
     <link rel="icon" href="ftball-logo.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=15" />
-    <link rel="stylesheet" href="modern-ui.css?v=15" />
+    <link rel="stylesheet" href="styles.css?v=20" />
+    <link rel="stylesheet" href="modern-ui.css?v=20" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body data-view="home">
     <main class="app-shell">
@@ -26,7 +27,16 @@
           <span data-phase="live">Campionato</span>
           <span data-phase="results">Risultati</span>
         </nav>
-        <button id="resetBtn" class="ghost-button" type="button">Nuova partita</button>
+        <div class="topbar-actions">
+          <button id="statsMenuBtn" class="ghost-button" type="button">Statistiche</button>
+          <div class="auth-widget">
+            <img id="authAvatarImg" class="profile-avatar profile-avatar-small" src="avatars/avatar-1.svg" alt="" />
+            <span id="authNameLabel" class="auth-name">Guest</span>
+            <div id="googleSignInBox" class="google-signin-box"></div>
+            <button id="logoutBtn" class="ghost-button is-hidden" type="button">Esci</button>
+          </div>
+          <button id="resetBtn" class="ghost-button" type="button">Nuova partita</button>
+        </div>
       </section>
 
       <section id="homeView" class="view active">
@@ -37,6 +47,14 @@
             <p class="muted">
               Asta flash, gestione della rosa e un'intera stagione da vivere con gli amici o contro l'intelligenza artificiale.
             </p>
+            <div class="home-profile-card">
+              <img id="homeProfileAvatar" class="profile-avatar" src="avatars/avatar-1.svg" alt="" />
+              <div>
+                <span>Profilo gioco</span>
+                <strong id="homeProfileName">Guest</strong>
+                <small>Nome e immagine appaiono in lobby, asta e classifiche.</small>
+              </div>
+            </div>
           </div>
           <div class="mode-grid">
             <button id="singleModeBtn" class="mode-card" type="button">
@@ -207,7 +225,13 @@
         <div class="game-layout">
           <aside class="panel manager-panel">
             <p id="userPanelTitle" class="eyebrow">Manager</p>
-            <h2>La tua squadra</h2>
+            <div class="manager-profile-head">
+              <img id="gameProfileAvatar" class="profile-avatar" src="avatars/avatar-1.svg" alt="" />
+              <div>
+                <h2>La tua squadra</h2>
+                <strong id="gameProfileName">Manager</strong>
+              </div>
+            </div>
             <div class="stat-row">
               <span>Crediti</span>
               <strong id="userCredits">0</strong>
@@ -376,6 +400,40 @@
         </div>
       </section>
 
+      <section id="statsView" class="view">
+        <div class="season-results">
+          <div class="panel results-panel">
+            <p class="eyebrow">Profilo partita</p>
+            <h2>Statistiche</h2>
+            <p id="statsStatusText" class="muted">Accedi con Google per salvare le statistiche.</p>
+            <section class="profile-editor" aria-labelledby="profileEditorTitle">
+              <div>
+                <p class="eyebrow">Profilo visibile</p>
+                <h3 id="profileEditorTitle">Nome e immagine</h3>
+              </div>
+              <div class="profile-form">
+                <label>
+                  Nome visualizzato
+                  <input id="displayNameInput" type="text" maxlength="18" value="Manager" />
+                </label>
+                <div>
+                  <span class="profile-field-label">Immagine profilo</span>
+                  <div id="avatarPicker" class="avatar-picker"></div>
+                </div>
+                <button id="saveProfileBtn" class="primary-button" type="button">Salva profilo</button>
+              </div>
+              <p id="profileSaveStatus" class="muted status-text"></p>
+            </section>
+            <div id="accountStatsSummary" class="account-stats-grid"></div>
+          </div>
+          <div class="panel player-stats-panel">
+            <p class="eyebrow">Storico</p>
+            <h2>Ultime partite</h2>
+            <div id="accountRecentMatches" class="recent-match-list"></div>
+          </div>
+        </div>
+      </section>
+
       <section id="liveSimView" class="view">
         <div class="live-sim-layout">
           <section class="panel live-feed-panel">
@@ -391,7 +449,7 @@
         </div>
       </section>
     </main>
-    <script src="players.js?v=15"></script>
-    <script src="app.js?v=15"></script>
+    <script src="players.js?v=20"></script>
+    <script src="app.js?v=20"></script>
   </body>
 </html>

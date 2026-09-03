@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Avatar portiere oro">
+  <rect width="96" height="96" rx="24" fill="#47320b"/>
+  <circle cx="48" cy="36" r="16" fill="#efc094"/>
+  <path d="M21 84c7-20 19-31 27-31s20 11 27 31" fill="#f2a900"/>
+  <path d="M29 32h38v11H29z" fill="#111"/>
+  <path d="M35 67h26" stroke="#103d2b" stroke-width="6" stroke-linecap="round"/>
+</svg>

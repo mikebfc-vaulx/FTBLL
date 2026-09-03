@@ -70,6 +70,8 @@ const generatedNames = {
 };
 
 const playerColors = ["#1e8e4d", "#2f80ed", "#d64545", "#f2a900", "#9b51e0", "#00a6a6", "#f26b38", "#5b6ee1"];
+const profileAvatars = ["avatar-1.svg", "avatar-2.svg", "avatar-3.svg", "avatar-4.svg", "avatar-5.svg", "avatar-6.svg"];
+const avatarPath = (avatar) => `avatars/${profileAvatars.includes(avatar) ? avatar : profileAvatars[0]}`;
 const tacticProfiles = {
   balanced: { attack: 1, defense: 1, shots: 1 },
   pressing: { attack: 1.05, defense: 0.98, shots: 1.05 },
@@ -197,6 +199,7 @@ const state = {
   running: false,
   tickId: null,
   simulation: null,
+  statsRecorded: false,
   lineupAssignments: {},
   liveSimulation: {
     timer: null,
@@ -208,10 +211,17 @@ const state = {
   lobbySettingsSaving: false,
   lobbyReadySaving: false,
   squadReadySaving: false,
+  lineupSaveSequence: 0,
   selectedLineupPlayerId: null,
   pendingTactic: null,
   pendingTacticalPlan: null,
   pendingCaptainId: null,
+  auth: {
+    token: localStorage.getItem("ftballAuthToken") || null,
+    user: JSON.parse(localStorage.getItem("ftballAuthUser") || "null") || JSON.parse(localStorage.getItem("ftballGuestProfile") || "null"),
+    googleClientId: null,
+    googleReady: false
+  },
   multiplayer: {
     code: null,
     playerId: null,
@@ -233,10 +243,12 @@ const views = {
   game: $("gameView"),
   squad: $("squadView"),
   results: $("resultsView"),
-  live: $("liveSimView")
+  live: $("liveSimView"),
+  stats: $("statsView")
 };
 
 function showView(name) {
+  if (name === "multi") applyProfileDefaultsToForms();
   Object.values(views).forEach((view) => view.classList.remove("active"));
   views[name].classList.add("active");
   state.view = name;
@@ -398,7 +410,8 @@ function createManagers(config) {
   ];
   const user = {
     id: "user",
-    name: "Tu",
+    name: displayName(),
+    avatar: currentAvatar(),
     credits: config.credits,
     squad: [],
     formation: config.formation,
@@ -412,6 +425,7 @@ function createManagers(config) {
   const rivals = names.slice(0, config.rivals).map((name, index) => ({
     id: `ai-${index}`,
     name,
+    avatar: profileAvatars[(index + 1) % profileAvatars.length],
     credits: config.credits,
     squad: [],
     formation: config.formation,
@@ -613,6 +627,7 @@ function createLeagueCpuManager(index) {
   return {
     id: `league-cpu-${index}-${Math.random().toString(36).slice(2, 7)}`,
     name: leagueCpuNames[index % leagueCpuNames.length],
+    avatar: profileAvatars[index % profileAvatars.length],
     credits: 0,
     squad,
     lineup: {},
@@ -637,8 +652,25 @@ function fillLeagueToTwentyTeams() {
 }
 
 function fillVacantSlots(manager = getUser()) {
-  const missing = vacantSlots(manager);
   ensureLineupAssignments(manager);
+  const lineup = buildLineup(manager);
+  const used = new Set(lineup.starters.filter((slot) => slot.player).map((slot) => slot.player.uid || slot.player.name));
+  const available = manager.squad
+    .filter((player) => !used.has(player.uid || player.name))
+    .sort((a, b) => b.overall - a.overall);
+  let missing = lineup.starters.filter((slot) => !slot.player);
+
+  missing.forEach((slot) => {
+    const exactIndex = available.findIndex((player) => player.role === slot.role);
+    const compatibleIndex = exactIndex === -1
+      ? available.findIndex((player) => compatibleRoleMoves[player.role]?.includes(slot.role))
+      : exactIndex;
+    if (compatibleIndex === -1) return;
+    const [player] = available.splice(compatibleIndex, 1);
+    manager.lineup[slot.id] = player.uid || player.name;
+  });
+
+  missing = buildLineup(manager).starters.filter((slot) => !slot.player);
   missing.forEach((slot) => {
     const player = makeGeneratedPlayer(slot.role);
     manager.squad.push(player);
@@ -668,6 +700,7 @@ function clearMatchState() {
   clearInterval(state.tickId);
   clearInterval(state.liveSimulation.timer);
   state.running = false;
+  state.statsRecorded = false;
   state.auctionPool = [];
   state.playerIndex = 0;
   state.calledCount = 0;
@@ -762,6 +795,242 @@ async function api(path, payload = null) {
   return data;
 }
 
+async function authedApi(path, payload = null) {
+  if (!state.auth.token) throw new Error("Login richiesto");
+  const options = payload
+    ? { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${state.auth.token}` }, body: JSON.stringify(payload) }
+    : { method: "GET", headers: { Authorization: `Bearer ${state.auth.token}` } };
+  const response = await fetch(path, options);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Errore server");
+  return data;
+}
+
+function setAuthSession(token, user) {
+  state.auth.token = token;
+  state.auth.user = user ? { ...user, avatar: profileAvatars.includes(user.avatar) ? user.avatar : profileAvatars[0] } : JSON.parse(localStorage.getItem("ftballGuestProfile") || "null");
+  if (token && user) {
+    localStorage.setItem("ftballAuthToken", token);
+    localStorage.setItem("ftballAuthUser", JSON.stringify(state.auth.user));
+  } else {
+    localStorage.removeItem("ftballAuthToken");
+    localStorage.removeItem("ftballAuthUser");
+  }
+  renderAuthWidget();
+}
+
+function displayName() {
+  return state.auth.user?.publicName || state.auth.user?.displayName || "Manager";
+}
+
+function currentAvatar() {
+  return profileAvatars.includes(state.auth.user?.avatar) ? state.auth.user.avatar : profileAvatars[0];
+}
+
+function renderAuthWidget() {
+  const logged = Boolean(state.auth.token && state.auth.user);
+  const name = displayName();
+  $("authNameLabel").textContent = logged ? name : (state.auth.user ? name : "Guest");
+  $("authAvatarImg").src = avatarPath(currentAvatar());
+  $("homeProfileAvatar").src = avatarPath(currentAvatar());
+  $("homeProfileName").textContent = logged || state.auth.user ? name : "Guest";
+  $("googleSignInBox").classList.toggle("is-hidden", logged || !state.auth.googleClientId);
+  $("logoutBtn").classList.toggle("is-hidden", !logged);
+  if (state.auth.user) {
+    $("hostNameInput").value = name;
+    $("joinNameInput").value = name;
+    $("displayNameInput").value = name;
+  }
+  renderAvatarPicker();
+}
+
+function applyProfileDefaultsToForms() {
+  if (!state.auth.user) return;
+  const name = displayName();
+  $("hostNameInput").value = name;
+  $("joinNameInput").value = name;
+}
+
+function renderAvatarPicker() {
+  const picker = $("avatarPicker");
+  if (!picker) return;
+  const selected = currentAvatar();
+  picker.innerHTML = profileAvatars.map((avatar, index) => `
+    <button class="avatar-choice ${avatar === selected ? "selected" : ""}" type="button" data-avatar="${avatar}" aria-label="Avatar ${index + 1}">
+      <img src="${avatarPath(avatar)}" alt="" />
+    </button>
+  `).join("");
+  picker.querySelectorAll("[data-avatar]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const name = $("displayNameInput").value || displayName();
+      state.auth.user = { ...(state.auth.user || {}), publicName: name, avatar: button.dataset.avatar };
+      if (!state.auth.token) localStorage.setItem("ftballGuestProfile", JSON.stringify(state.auth.user));
+      renderAuthWidget();
+    });
+  });
+}
+
+async function initGoogleLogin() {
+  try {
+    const config = await api("/api/config");
+    state.auth.googleClientId = config.googleClientId || null;
+    renderAuthWidget();
+    if (!state.auth.googleClientId) return;
+    const waitForGoogle = setInterval(() => {
+      if (!window.google?.accounts?.id || state.auth.googleReady) return;
+      clearInterval(waitForGoogle);
+      state.auth.googleReady = true;
+      window.google.accounts.id.initialize({
+        client_id: state.auth.googleClientId,
+        callback: window.handleGoogleCredential
+      });
+      window.google.accounts.id.renderButton($("googleSignInBox"), {
+        theme: "filled_black",
+        size: "medium",
+        text: "signin_with",
+        shape: "pill"
+      });
+    }, 150);
+  } catch {
+    $("authNameLabel").textContent = "Stats offline";
+  }
+}
+
+window.handleGoogleCredential = async (response) => {
+  try {
+    const session = await api("/api/auth/google", { credential: response.credential });
+    setAuthSession(session.token, session.user);
+    await loadAccountStats();
+  } catch (error) {
+    $("authNameLabel").textContent = error.message;
+  }
+};
+
+async function logoutAccount() {
+  try {
+    await authedApi("/api/auth/logout", {});
+  } catch {
+    // Sessioni gia scadute o server riavviato: il logout locale resta valido.
+  }
+  setAuthSession(null, null);
+  renderStatsView();
+}
+
+function emptyAccountStats() {
+  return {
+    single: { played: 0, wins: 0, podiums: 0, points: 0, gf: 0, ga: 0, goals: 0, assists: 0, bestFinish: null },
+    online: { played: 0, wins: 0, podiums: 0, points: 0, gf: 0, ga: 0, goals: 0, assists: 0, bestFinish: null },
+    recent: []
+  };
+}
+
+function statCard(modeLabel, data) {
+  const avgPoints = data.played ? (data.points / data.played).toFixed(1) : "0.0";
+  const best = data.bestFinish ? `${data.bestFinish} posto` : "--";
+  return `
+    <article class="account-stat-card">
+      <span>${modeLabel}</span>
+      <strong>${data.played}</strong>
+      <small>Partite giocate</small>
+      <div><b>${data.wins}</b><em>Vittorie</em></div>
+      <div><b>${data.podiums}</b><em>Podi</em></div>
+      <div><b>${avgPoints}</b><em>Punti medi</em></div>
+      <div><b>${data.gf}-${data.ga}</b><em>Gol fatti/subiti</em></div>
+      <div><b>${data.goals}G ${data.assists}A</b><em>Rosa</em></div>
+      <div><b>${best}</b><em>Miglior piazzamento</em></div>
+    </article>
+  `;
+}
+
+function renderStatsView(stats = emptyAccountStats()) {
+  const logged = Boolean(state.auth.token && state.auth.user);
+  $("statsStatusText").textContent = logged
+    ? `Profilo ${state.auth.user.publicName}. Salviamo solo un id hashato e questo nome pubblico.`
+    : "Accedi con Google per salvare progressi single player e online.";
+  $("displayNameInput").value = displayName();
+  renderAvatarPicker();
+  $("accountStatsSummary").innerHTML = statCard("Single player", stats.single) + statCard("Online", stats.online);
+  $("accountRecentMatches").innerHTML = stats.recent?.length
+    ? stats.recent.map((match) => `
+      <div class="recent-match-card">
+        <strong>${match.mode === "online" ? "Online" : "Single"} - ${match.position}/${match.teams}</strong>
+        <span>${new Date(match.date).toLocaleDateString("it-IT")} · ${match.points} pt · GF ${match.gf} GS ${match.ga}</span>
+        <small>Campione: ${match.champion || "--"}</small>
+      </div>
+    `).join("")
+    : `<p class="muted empty-stats-message">Nessuna partita registrata.</p>`;
+}
+
+async function saveProfile() {
+  const cleanName = ($("displayNameInput").value || "Manager").replace(/[<>]/g, "").trim().slice(0, 18) || "Manager";
+  const avatar = currentAvatar();
+  $("profileSaveStatus").textContent = "Salvataggio profilo...";
+  if (!state.auth.token) {
+    state.auth.user = { publicName: cleanName, avatar };
+    localStorage.setItem("ftballGuestProfile", JSON.stringify(state.auth.user));
+    renderAuthWidget();
+    $("profileSaveStatus").textContent = "Profilo guest aggiornato su questo browser.";
+    return;
+  }
+  try {
+    const data = await authedApi("/api/profile", { displayName: cleanName, avatar });
+    state.auth.user = data.user;
+    localStorage.setItem("ftballAuthUser", JSON.stringify(data.user));
+    renderAuthWidget();
+    renderStatsView(data.stats);
+    $("profileSaveStatus").textContent = "Profilo salvato.";
+  } catch (error) {
+    $("profileSaveStatus").textContent = error.message;
+  }
+}
+
+async function loadAccountStats() {
+  if (!state.auth.token) {
+    renderStatsView();
+    return;
+  }
+  try {
+    const data = await authedApi("/api/stats");
+    if (data.user) {
+      state.auth.user = data.user;
+      localStorage.setItem("ftballAuthUser", JSON.stringify(data.user));
+      renderAuthWidget();
+    }
+    renderStatsView(data.stats);
+  } catch (error) {
+    $("statsStatusText").textContent = error.message;
+  }
+}
+
+async function recordCurrentMatchStats(ranking) {
+  if (!state.auth.token || state.statsRecorded) return;
+  const user = getUser();
+  if (!user?.stats) return;
+  const position = ranking.findIndex((manager) => manager.id === user.id || manager.isUser) + 1;
+  if (!position) return;
+  const playerTotals = user.squad.reduce((totals, player) => {
+    totals.goals += player.stats?.goals || 0;
+    totals.assists += player.stats?.assists || 0;
+    return totals;
+  }, { goals: 0, assists: 0 });
+  state.statsRecorded = true;
+  try {
+    await authedApi("/api/stats", {
+      mode: state.mode === "multi" ? "online" : "single",
+      position,
+      teams: ranking.length,
+      points: user.stats.points,
+      gf: user.stats.gf,
+      ga: user.stats.ga,
+      playerGoals: playerTotals.goals,
+      playerAssists: playerTotals.assists,
+      champion: ranking[0]?.name || ""
+    });
+  } catch {
+    state.statsRecorded = false;
+  }
+}
+
 function setMultiplayerStatus(message) {
   $("multiStatusText").textContent = message;
 }
@@ -776,7 +1045,8 @@ async function createMultiplayerLobby() {
     stopMultiplayerPolling();
     clearMultiplayerSession();
     const payload = {
-      name: $("hostNameInput").value
+      name: $("hostNameInput").value || displayName(),
+      avatar: currentAvatar()
     };
     const result = await api("/api/lobbies", payload);
     state.multiplayer.code = result.code;
@@ -795,7 +1065,7 @@ async function joinMultiplayerLobby() {
     stopMultiplayerPolling();
     clearMultiplayerSession();
     const code = $("joinCodeInput").value.trim().toUpperCase();
-    const result = await api(`/api/lobbies/${code}/join`, { name: $("joinNameInput").value });
+    const result = await api(`/api/lobbies/${code}/join`, { name: $("joinNameInput").value || displayName(), avatar: currentAvatar() });
     state.multiplayer.code = result.code;
     state.multiplayer.playerId = result.playerId;
     state.multiplayer.isHost = false;
@@ -954,14 +1224,14 @@ function renderLiveTable(standings) {
   $("liveTable").classList.add("compact-league-table", "live-league-table");
   $("liveTable").innerHTML = `
     <div class="league-header">
-      <span>#</span><span>Squadra</span><span>PG</span><span>PTS</span>
+      <span>#</span><span>Squadra</span><span>PG</span><span>GF</span><span>GS</span><span>PTS</span>
     </div>
     ${standings
       .map((manager, index) => {
         const isRealMultiplayer = state.mode === "multi" && !manager.isBot;
         const isCurrentPlayer = manager.id === currentUserId() || manager.isUser;
         const rowStyle = isRealMultiplayer ? `style="--team-color:${manager.color || "#1e8e4d"}"` : "";
-        return `<div class="league-row ${isRealMultiplayer ? "real-player-row" : ""} ${isCurrentPlayer ? "live-user-row" : ""}" ${rowStyle}><span>${index + 1}</span><strong>${manager.name}${isCurrentPlayer ? ' <small class="you-label">TU</small>' : ""}</strong><span>${manager.stats.played}</span><strong>${manager.stats.points}</strong></div>`;
+        return `<div class="league-row ${isRealMultiplayer ? "real-player-row" : ""} ${isCurrentPlayer ? "live-user-row" : ""}" ${rowStyle}><span>${index + 1}</span><strong class="team-name-with-avatar"><img class="profile-avatar profile-avatar-tiny" src="${avatarPath(manager.avatar)}" alt="" />${manager.name}${isCurrentPlayer ? ' <small class="you-label">TU</small>' : ""}</strong><span>${manager.stats.played}</span><span>${manager.stats.gf}</span><span>${manager.stats.ga}</span><strong>${manager.stats.points}</strong></div>`;
       })
       .join("")}
   `;
@@ -1002,7 +1272,7 @@ function renderLobbyPlayers(managers, hostId) {
       return `
         <div class="rival-card lobby-player-card ${manager.online === false ? "offline-player" : ""}" style="--team-color:${color}">
           <div class="rival-card-head">
-            <strong><span class="player-color-dot"></span>${manager.name}</strong>
+            <strong><img class="profile-avatar profile-avatar-tiny" src="${avatarPath(manager.avatar)}" alt="" /><span class="player-color-dot"></span>${manager.name}</strong>
             <span>${manager.ready ? "V" : "-"} ${manager.id === hostId ? "Host" : ""}</span>
           </div>
           <div class="rival-metrics"><span>${manager.formation}</span><span>${connectionLabel}</span></div>
@@ -1200,6 +1470,8 @@ async function syncLobbyProfile() {
   if (!state.multiplayer.code || !state.multiplayer.playerId) return null;
   return api(`/api/lobbies/${state.multiplayer.code}/profile`, {
     playerId: state.multiplayer.playerId,
+    name: displayName(),
+    avatar: currentAvatar(),
     color: $("lobbyColorInput").value,
     formation: $("lobbyFormationSelect").value
   });
@@ -1694,6 +1966,8 @@ async function saveLineupDraft() {
   if (state.mode !== "multi" || !state.multiplayer.code) return;
   const user = getUser();
   if (!user) return;
+  const sequence = state.lineupSaveSequence + 1;
+  state.lineupSaveSequence = sequence;
   try {
     const snapshot = await api(`/api/lobbies/${state.multiplayer.code}/lineup`, {
       playerId: state.multiplayer.playerId,
@@ -1702,8 +1976,10 @@ async function saveLineupDraft() {
       captainId: state.pendingCaptainId || user.captainId,
       lineup: user.lineup || {}
     });
+    if (sequence !== state.lineupSaveSequence) return;
     applyMultiplayerSnapshot(snapshot);
   } catch (error) {
+    if (sequence !== state.lineupSaveSequence) return;
     $("lineupSummary").textContent = error.message;
   }
 }
@@ -1742,6 +2018,8 @@ function renderAuction() {
 function renderManagers() {
   const user = getUser();
   $("userPanelTitle").textContent = user?.name || "Manager";
+  $("gameProfileName").textContent = user?.name || displayName();
+  $("gameProfileAvatar").src = avatarPath(user?.avatar || currentAvatar());
   $("userCredits").textContent = user.credits;
   $("userFormation").textContent = user.formation || state.config.formation;
   $("teamRating").textContent = teamRating(user);
@@ -1755,7 +2033,7 @@ function renderManagers() {
         return `
         <div class="rival-card">
           <div class="rival-card-head">
-            <strong>${manager.name}</strong>
+            <strong><img class="profile-avatar profile-avatar-tiny" src="${avatarPath(manager.avatar)}" alt="" />${manager.name}</strong>
             <span>${manager.credits} cr</span>
           </div>
           <div class="rival-metrics">
@@ -2166,7 +2444,7 @@ function showResults() {
         return `
         <div class="league-row ${manager.isUser ? "user-row" : ""} ${isRealMultiplayer ? "real-player-row" : ""}" ${rowStyle}>
           <span>${index + 1}</span>
-          <strong>${manager.name}</strong>
+          <strong class="team-name-with-avatar"><img class="profile-avatar profile-avatar-tiny" src="${avatarPath(manager.avatar)}" alt="" />${manager.name}</strong>
           <span>${manager.stats.played}</span>
           <span>${manager.stats.won}</span>
           <span>${manager.stats.drawn}</span>
@@ -2182,6 +2460,7 @@ function showResults() {
   `;
   renderPlayerStats();
   renderFinalCalendar();
+  recordCurrentMatchStats(ranking);
 }
 
 function renderFinalCalendar() {
@@ -2293,8 +2572,20 @@ function updateSetupSummary() {
   $("setupSummary").textContent = `Budget ${credits} cr - ${rounds} giocatori in asta - ${rivals} IA asta - campionato a 20 squadre`;
 }
 
-$("singleModeBtn").addEventListener("click", () => showView("setup"));
-$("multiModeBtn").addEventListener("click", () => showView("multi"));
+$("singleModeBtn").addEventListener("click", () => {
+  applyProfileDefaultsToForms();
+  showView("setup");
+});
+$("multiModeBtn").addEventListener("click", () => {
+  applyProfileDefaultsToForms();
+  showView("multi");
+});
+$("statsMenuBtn").addEventListener("click", () => {
+  showView("stats");
+  loadAccountStats();
+});
+$("logoutBtn").addEventListener("click", logoutAccount);
+$("saveProfileBtn").addEventListener("click", saveProfile);
 $("createLobbyBtn").addEventListener("click", createMultiplayerLobby);
 $("joinLobbyBtn").addEventListener("click", joinMultiplayerLobby);
 $("startLobbyAuctionBtn").addEventListener("click", startMultiplayerAuction);
@@ -2339,6 +2630,19 @@ document.querySelectorAll("[data-bid]").forEach((button) => {
   button.addEventListener("click", () => userBid(Number(button.dataset.bid)));
 });
 
+window.addEventListener("beforeunload", () => {
+  if (state.mode !== "multi" || state.view !== "lobby" || !state.multiplayer.code || !state.multiplayer.playerId) return;
+  const payload = JSON.stringify({ playerId: state.multiplayer.playerId });
+  const url = `/api/lobbies/${state.multiplayer.code}/leave`;
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon(url, new Blob([payload], { type: "application/json" }));
+    return;
+  }
+  fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
+});
+
+renderAuthWidget();
+initGoogleLogin();
 applyDifficultyDefaults();
 
 const joinCodeFromUrl = new URLSearchParams(window.location.search).get("join");
