@@ -844,8 +844,6 @@ function renderAuthWidget() {
   const googleEnabled = Boolean(state.auth.googleClientId);
   $("authNameLabel").textContent = logged ? name : (state.auth.user ? name : "Guest");
   $("authAvatarImg").src = avatarPath(currentAvatar());
-  $("homeProfileAvatar").src = avatarPath(currentAvatar());
-  $("homeProfileName").textContent = logged || state.auth.user ? name : "Guest";
   $("googleSignInBox").classList.toggle("is-hidden", logged || !googleEnabled);
   $("googleFallbackBtn").classList.toggle("is-hidden", logged || googleEnabled);
   $("logoutBtn").classList.toggle("is-hidden", !logged);

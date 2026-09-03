@@ -882,3 +882,116 @@ select option {
     font-size: clamp(2.15rem, 12vw, 3.4rem);
   }
 }
+
+/* Responsive top navigation: keep every label inside its own surface. */
+.topbar {
+  grid-template-areas: "brand phases actions";
+}
+
+.brand-lockup {
+  grid-area: brand;
+  min-width: 0;
+}
+
+.brand-lockup > div {
+  min-width: 0;
+}
+
+.phase-tabs {
+  grid-area: phases;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.phase-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.topbar-actions {
+  grid-area: actions;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.brand-lockup h1,
+.brand-lockup .eyebrow,
+.topbar button,
+.auth-name {
+  white-space: nowrap;
+}
+
+.auth-widget,
+.google-signin-box {
+  min-width: 0;
+}
+
+.auth-name {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-panel {
+  align-items: center;
+}
+
+@media (max-width: 1180px) {
+  .topbar {
+    grid-template-areas:
+      "brand actions"
+      "phases phases";
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .topbar-actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 850px) {
+  .topbar {
+    grid-template-areas:
+      "brand"
+      "actions"
+      "phases";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 620px) {
+  .topbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .auth-widget {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+  }
+
+  #statsMenuBtn {
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+  }
+
+  #resetBtn {
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+  }
+
+  .google-signin-box,
+  .google-fallback-button {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+}
