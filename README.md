@@ -26,7 +26,9 @@ For local testing also authorize `http://localhost:3000`. The app uses a JavaScr
 
 Statistics are stored separately for every Google account, using a one-way hash of the Google account ID. A completed championship is recorded once and contributes to the Single player or Online totals.
 
-`STATS_FILE` controls where the JSON store is written. Render's default filesystem is ephemeral, so durable storage requires mounting a persistent disk at `/var/data` and setting `STATS_FILE=/var/data/stats-store.json` (or replacing the JSON store with a database). Without a disk, data remains separate per account but can be lost after a restart or deploy. Login sessions are intentionally temporary; after a server restart users sign in again and recover their stored statistics.
+The browser also keeps a per-account recovery copy of profile and statistics. This prevents an immediate logout/login or a temporary Render storage reset from replacing the table with zeroes on the same device. Match IDs make retries safe and avoid counting the same championship twice.
+
+`STATS_FILE` controls where the JSON store is written. Render's default filesystem is ephemeral, so durable cross-device storage requires mounting a persistent disk at `/var/data` and setting `STATS_FILE=/var/data/stats-store.json` (or replacing the JSON store with a database). Without a disk, the browser recovery copy still protects each account on the same device, but a new device cannot recover data lost by Render. Login sessions are intentionally temporary.
 
 ## Multiplayer model
 

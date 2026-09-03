@@ -211,6 +211,8 @@ const state = {
   tickId: null,
   simulation: null,
   statsRecorded: false,
+  statsSavePromise: null,
+  currentMatchId: null,
   lineupAssignments: {},
   liveSimulation: {
     timer: null,
@@ -230,6 +232,7 @@ const state = {
   auth: {
     token: localStorage.getItem("ftballAuthToken") || null,
     user: JSON.parse(localStorage.getItem("ftballAuthUser") || "null") || JSON.parse(localStorage.getItem("ftballGuestProfile") || "null"),
+    stats: null,
     googleClientId: null,
     googleReady: false
   },
@@ -712,6 +715,7 @@ function clearMatchState() {
   clearInterval(state.liveSimulation.timer);
   state.running = false;
   state.statsRecorded = false;
+  state.currentMatchId = globalThis.crypto?.randomUUID?.() || `match-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   state.auctionPool = [];
   state.playerIndex = 0;
   state.calledCount = 0;
@@ -818,11 +822,18 @@ async function authedApi(path, payload = null) {
 }
 
 function setAuthSession(token, user) {
+  const cachedAccount = user?.id ? readAccountCache(user.id) : null;
+  const guestProfile = state.auth.user && !state.auth.user.id ? state.auth.user : null;
+  const cachedUser = cachedAccount?.user || guestProfile;
   state.auth.token = token;
-  state.auth.user = user ? { ...user, avatar: profileAvatars.includes(user.avatar) ? user.avatar : profileAvatars[0] } : JSON.parse(localStorage.getItem("ftballGuestProfile") || "null");
+  state.auth.user = user
+    ? preferredAccountUser({ ...user, avatar: profileAvatars.includes(user.avatar) ? user.avatar : profileAvatars[0] }, cachedUser)
+    : JSON.parse(localStorage.getItem("ftballGuestProfile") || "null");
+  state.auth.stats = token && user ? normalizeAccountStats(cachedAccount?.stats) : null;
   if (token && user) {
     localStorage.setItem("ftballAuthToken", token);
     localStorage.setItem("ftballAuthUser", JSON.stringify(state.auth.user));
+    writeAccountCache();
   } else {
     localStorage.removeItem("ftballAuthToken");
     localStorage.removeItem("ftballAuthUser");
@@ -942,6 +953,25 @@ window.handleGoogleCredential = async (response) => {
 };
 
 async function logoutAccount() {
+  if (state.statsSavePromise) {
+    try {
+      await state.statsSavePromise;
+    } catch {
+      // Il backup locale conserva comunque la partita appena terminata.
+    }
+  }
+  if (state.auth.token && state.auth.user) {
+    const draftName = ($("displayNameInput").value || displayName()).replace(/[<>]/g, "").trim().slice(0, 18) || "Manager";
+    state.auth.user = { ...state.auth.user, publicName: draftName, avatar: currentAvatar() };
+    writeAccountCache();
+    try {
+      const savedProfile = await authedApi("/api/profile", { displayName: draftName, avatar: currentAvatar() });
+      state.auth.user = savedProfile.user;
+      writeAccountCache(savedProfile.user, mergeAccountStats(state.auth.stats, savedProfile.stats));
+    } catch {
+      // Il profilo resta nel backup locale associato a questo account.
+    }
+  }
   try {
     await authedApi("/api/auth/logout", {});
   } catch {
@@ -957,6 +987,112 @@ function emptyAccountStats() {
     online: { played: 0, wins: 0, podiums: 0, points: 0, gf: 0, ga: 0, goals: 0, assists: 0, bestFinish: null },
     recent: []
   };
+}
+
+function normalizeStatsBucket(bucket = {}) {
+  const empty = emptyAccountStats().single;
+  const normalized = {};
+  Object.keys(empty).forEach((key) => {
+    if (key === "bestFinish") {
+      normalized[key] = bucket[key] == null ? null : Math.max(1, Number(bucket[key]) || 1);
+      return;
+    }
+    normalized[key] = Math.max(0, Number(bucket[key]) || 0);
+  });
+  return normalized;
+}
+
+function normalizeAccountStats(stats = {}) {
+  return {
+    single: normalizeStatsBucket(stats.single),
+    online: normalizeStatsBucket(stats.online),
+    recent: Array.isArray(stats.recent) ? stats.recent.filter(Boolean).slice(0, 12) : []
+  };
+}
+
+function mergeAccountStats(localStats, serverStats) {
+  const local = normalizeAccountStats(localStats);
+  const server = normalizeAccountStats(serverStats);
+  const merged = emptyAccountStats();
+  ["single", "online"].forEach((mode) => {
+    Object.keys(merged[mode]).forEach((key) => {
+      if (key === "bestFinish") {
+        const finishes = [local[mode][key], server[mode][key]].filter((value) => value != null);
+        merged[mode][key] = finishes.length ? Math.min(...finishes) : null;
+      } else {
+        merged[mode][key] = Math.max(local[mode][key], server[mode][key]);
+      }
+    });
+  });
+  const recentById = new Map();
+  [...local.recent, ...server.recent].forEach((match) => {
+    const key = match.id || `${match.date}-${match.mode}-${match.position}-${match.points}`;
+    if (!recentById.has(key)) recentById.set(key, match);
+  });
+  merged.recent = [...recentById.values()]
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+    .slice(0, 12);
+  return merged;
+}
+
+function accountCacheKey(userId) {
+  return userId ? `ftballAccount:${userId}` : null;
+}
+
+function readAccountCache(userId) {
+  const key = accountCacheKey(userId);
+  if (!key) return null;
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function writeAccountCache(user = state.auth.user, stats = state.auth.stats) {
+  const key = accountCacheKey(user?.id);
+  if (!key) return;
+  localStorage.setItem(key, JSON.stringify({ user, stats: normalizeAccountStats(stats), updatedAt: new Date().toISOString() }));
+}
+
+function preferredAccountUser(serverUser, cachedUser) {
+  if (!cachedUser) return serverUser;
+  const serverName = serverUser?.publicName || "";
+  const cachedName = cachedUser.publicName || "";
+  const useCachedName = cachedName && cachedName !== "Manager" && (!serverName || serverName === "Manager" || serverName.startsWith("Manager-"));
+  const useCachedAvatar = profileAvatars.includes(cachedUser.avatar) && (!serverUser?.avatar || serverUser.avatar === profileAvatars[0]);
+  return {
+    ...serverUser,
+    publicName: useCachedName ? cachedName : serverName,
+    avatar: useCachedAvatar ? cachedUser.avatar : serverUser?.avatar
+  };
+}
+
+function applyMatchToAccountStats(stats, payload) {
+  const next = normalizeAccountStats(stats);
+  if (next.recent.some((match) => match.id === payload.matchId)) return next;
+  const bucket = next[payload.mode];
+  bucket.played += 1;
+  bucket.wins += payload.position === 1 ? 1 : 0;
+  bucket.podiums += payload.position <= 3 ? 1 : 0;
+  bucket.points += payload.points;
+  bucket.gf += payload.gf;
+  bucket.ga += payload.ga;
+  bucket.goals += payload.playerGoals;
+  bucket.assists += payload.playerAssists;
+  bucket.bestFinish = bucket.bestFinish == null ? payload.position : Math.min(bucket.bestFinish, payload.position);
+  next.recent = [{
+    id: payload.matchId,
+    date: new Date().toISOString(),
+    mode: payload.mode,
+    position: payload.position,
+    teams: payload.teams,
+    points: payload.points,
+    gf: payload.gf,
+    ga: payload.ga,
+    champion: payload.champion
+  }, ...next.recent].slice(0, 12);
+  return next;
 }
 
 function statCard(modeLabel, data) {
@@ -978,15 +1114,17 @@ function statCard(modeLabel, data) {
 }
 
 function renderStatsView(stats = emptyAccountStats()) {
+  const safeStats = normalizeAccountStats(stats);
+  if (state.auth.token) state.auth.stats = safeStats;
   const logged = Boolean(state.auth.token && state.auth.user);
   $("statsStatusText").textContent = logged
     ? `Profilo ${state.auth.user.publicName}. Salviamo solo un id hashato e questo nome pubblico.`
     : "Accedi con Google per salvare progressi single player e online.";
   $("displayNameInput").value = displayName();
   renderAvatarPicker();
-  $("accountStatsSummary").innerHTML = statCard("Single player", stats.single) + statCard("Online", stats.online);
-  $("accountRecentMatches").innerHTML = stats.recent?.length
-    ? stats.recent.map((match) => `
+  $("accountStatsSummary").innerHTML = statCard("Single player", safeStats.single) + statCard("Online", safeStats.online);
+  $("accountRecentMatches").innerHTML = safeStats.recent.length
+    ? safeStats.recent.map((match) => `
       <div class="recent-match-card">
         <strong>${match.mode === "online" ? "Online" : "Single"} - ${match.position}/${match.teams}</strong>
         <span>${new Date(match.date).toLocaleDateString("it-IT")} · ${match.points} pt · GF ${match.gf} GS ${match.ga}</span>
@@ -1011,6 +1149,7 @@ async function saveProfile() {
     const data = await authedApi("/api/profile", { displayName: cleanName, avatar });
     state.auth.user = data.user;
     localStorage.setItem("ftballAuthUser", JSON.stringify(data.user));
+    writeAccountCache(data.user, data.stats);
     renderAuthWidget();
     renderStatsView(data.stats);
     $("profileSaveStatus").textContent = "Profilo salvato.";
@@ -1024,15 +1163,35 @@ async function loadAccountStats() {
     renderStatsView();
     return;
   }
+  const cachedAccount = readAccountCache(state.auth.user?.id);
+  const cachedStats = mergeAccountStats(state.auth.stats, cachedAccount?.stats);
+  renderStatsView(cachedStats);
+  $("statsStatusText").textContent = "Aggiornamento statistiche...";
   try {
+    if (state.statsSavePromise) await state.statsSavePromise;
     const data = await authedApi("/api/stats");
+    let mergedStats = mergeAccountStats(cachedStats, data.stats);
     if (data.user) {
-      state.auth.user = data.user;
-      localStorage.setItem("ftballAuthUser", JSON.stringify(data.user));
+      state.auth.user = preferredAccountUser(data.user, cachedAccount?.user);
+      if (state.auth.user.publicName !== data.user.publicName || state.auth.user.avatar !== data.user.avatar) {
+        try {
+          const syncedProfile = await authedApi("/api/profile", {
+            displayName: state.auth.user.publicName,
+            avatar: state.auth.user.avatar
+          });
+          state.auth.user = syncedProfile.user;
+          mergedStats = mergeAccountStats(mergedStats, syncedProfile.stats);
+        } catch {
+          // Il backup locale mantiene comunque il profilo se lo storage Render viene azzerato.
+        }
+      }
+      localStorage.setItem("ftballAuthUser", JSON.stringify(state.auth.user));
       renderAuthWidget();
     }
-    renderStatsView(data.stats);
+    writeAccountCache(state.auth.user, mergedStats);
+    renderStatsView(mergedStats);
   } catch (error) {
+    renderStatsView(cachedStats);
     $("statsStatusText").textContent = error.message;
   }
 }
@@ -1048,21 +1207,36 @@ async function recordCurrentMatchStats(ranking) {
     totals.assists += player.stats?.assists || 0;
     return totals;
   }, { goals: 0, assists: 0 });
+  const payload = {
+    matchId: state.currentMatchId || (globalThis.crypto?.randomUUID?.() || `match-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`),
+    mode: state.mode === "multi" ? "online" : "single",
+    position,
+    teams: ranking.length,
+    points: user.stats.points,
+    gf: user.stats.gf,
+    ga: user.stats.ga,
+    playerGoals: playerTotals.goals,
+    playerAssists: playerTotals.assists,
+    champion: ranking[0]?.name || ""
+  };
+  state.currentMatchId = payload.matchId;
+  const cachedAccount = readAccountCache(state.auth.user?.id);
+  const optimisticStats = applyMatchToAccountStats(mergeAccountStats(state.auth.stats, cachedAccount?.stats), payload);
+  state.auth.stats = optimisticStats;
+  writeAccountCache(state.auth.user, optimisticStats);
   state.statsRecorded = true;
+  const savePromise = authedApi("/api/stats", payload);
+  state.statsSavePromise = savePromise;
   try {
-    await authedApi("/api/stats", {
-      mode: state.mode === "multi" ? "online" : "single",
-      position,
-      teams: ranking.length,
-      points: user.stats.points,
-      gf: user.stats.gf,
-      ga: user.stats.ga,
-      playerGoals: playerTotals.goals,
-      playerAssists: playerTotals.assists,
-      champion: ranking[0]?.name || ""
-    });
+    const data = await savePromise;
+    const mergedStats = mergeAccountStats(optimisticStats, data.stats);
+    state.auth.stats = mergedStats;
+    if (data.user) state.auth.user = preferredAccountUser(data.user, state.auth.user);
+    writeAccountCache(state.auth.user, mergedStats);
   } catch {
     state.statsRecorded = false;
+  } finally {
+    if (state.statsSavePromise === savePromise) state.statsSavePromise = null;
   }
 }
 

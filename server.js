@@ -234,6 +234,18 @@ function defaultUserStats() {
   };
 }
 
+function normalizeStoredUserStats(stats = {}) {
+  const defaults = defaultUserStats();
+  return {
+    ...defaults,
+    ...stats,
+    profile: { ...defaults.profile, ...(stats.profile || {}) },
+    single: { ...defaults.single, ...(stats.single || {}) },
+    online: { ...defaults.online, ...(stats.online || {}) },
+    recent: Array.isArray(stats.recent) ? stats.recent : []
+  };
+}
+
 function readStatsStore() {
   try {
     const parsed = JSON.parse(fs.readFileSync(STATS_FILE, "utf8"));
@@ -253,8 +265,7 @@ function writeStatsStore(store) {
 
 function statsForUser(userId) {
   const store = readStatsStore();
-  const stats = store.users[userId] || defaultUserStats();
-  return { ...defaultUserStats(), ...stats, profile: { ...defaultUserStats().profile, ...(stats.profile || {}) } };
+  return normalizeStoredUserStats(store.users[userId]);
 }
 
 function profileForUser(user) {
@@ -268,7 +279,7 @@ function profileForUser(user) {
 
 function updateUserProfile(user, body) {
   const store = readStatsStore();
-  const userStats = { ...defaultUserStats(), ...(store.users[user.id] || {}) };
+  const userStats = normalizeStoredUserStats(store.users[user.id]);
   userStats.profile = {
     displayName: sanitizeDisplayName(body.displayName, user.publicName),
     avatar: sanitizeAvatar(body.avatar)
@@ -282,7 +293,9 @@ function updateUserProfile(user, body) {
 
 function recordUserStats(user, body) {
   const store = readStatsStore();
-  const userStats = { ...defaultUserStats(), ...(store.users[user.id] || {}) };
+  const userStats = normalizeStoredUserStats(store.users[user.id]);
+  const matchId = String(body.matchId || "").replace(/[^a-zA-Z0-9-]/g, "").slice(0, 80);
+  if (matchId && userStats.recent.some((match) => match.id === matchId)) return userStats;
   const mode = body.mode === "online" ? "online" : "single";
   const bucket = userStats[mode];
   const finish = clamp(body.position, 1, 99);
@@ -298,7 +311,7 @@ function recordUserStats(user, body) {
   bucket.bestFinish = bucket.bestFinish == null ? finish : Math.min(bucket.bestFinish, finish);
   userStats.recent = [
     {
-      id: crypto.randomBytes(8).toString("hex"),
+      id: matchId || crypto.randomBytes(8).toString("hex"),
       date: new Date().toISOString(),
       mode,
       position: finish,
@@ -1077,13 +1090,21 @@ async function handleApi(req, res, parts, url) {
   if (parts[1] === "stats") {
     const user = userFromRequest(req);
     if (!user) return json(res, 401, { error: "Login richiesto" });
-    if (req.method === "GET") return json(res, 200, { user: profileForUser(user), stats: statsForUser(user.id) });
-    if (req.method === "POST") return json(res, 200, { user, stats: recordUserStats(user, body) });
+    try {
+      if (req.method === "GET") return json(res, 200, { user: profileForUser(user), stats: statsForUser(user.id) });
+      if (req.method === "POST") return json(res, 200, { user: profileForUser(user), stats: recordUserStats(user, body) });
+    } catch {
+      return json(res, 500, { error: "Impossibile salvare le statistiche sul server" });
+    }
   }
   if (parts[1] === "profile") {
     const user = userFromRequest(req);
     if (!user) return json(res, 401, { error: "Login richiesto" });
-    if (req.method === "POST") return json(res, 200, updateUserProfile(user, body));
+    try {
+      if (req.method === "POST") return json(res, 200, updateUserProfile(user, body));
+    } catch {
+      return json(res, 500, { error: "Impossibile salvare il profilo sul server" });
+    }
   }
   if (req.method === "POST" && parts[1] === "lobbies" && parts.length === 2) {
     const settings = {
@@ -1316,6 +1337,7 @@ module.exports = {
   comparePlayersByScoring,
   statsForUser,
   recordUserStats,
+  updateUserProfile,
   playMatch,
   buildCalendarRounds,
   emptyStats,

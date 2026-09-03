@@ -883,6 +883,50 @@ select option {
   }
 }
 
+/* Give the in-progress squad and the live table visual priority. */
+@media (min-width: 1181px) {
+  .game-layout {
+    grid-template-columns: 370px minmax(390px, 1fr) 240px;
+  }
+
+  .manager-panel .mini-formation {
+    min-height: 330px;
+  }
+}
+
+@media (min-width: 981px) and (max-width: 1180px) {
+  .game-layout {
+    grid-template-columns: 320px minmax(360px, 1fr) 220px;
+  }
+
+  .manager-panel .mini-formation {
+    min-height: 300px;
+  }
+
+  .auction-card {
+    padding-inline: 34px;
+  }
+}
+
+@media (min-width: 981px) {
+  .live-sim-layout {
+    grid-template-columns: minmax(340px, 0.72fr) minmax(560px, 1.28fr);
+  }
+
+  .live-feed-panel {
+    min-width: 0;
+  }
+
+  .live-table-panel {
+    min-width: 0;
+  }
+
+  .live-table-panel .compact-league-table .league-header,
+  .live-table-panel .compact-league-table .league-row {
+    grid-template-columns: 38px minmax(150px, 1fr) repeat(3, 48px) 68px;
+  }
+}
+
 /* Responsive top navigation: keep every label inside its own surface. */
 .topbar {
   grid-template-areas: "brand phases actions";
@@ -935,7 +979,7 @@ select option {
   align-items: center;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1350px) {
   .topbar {
     grid-template-areas:
       "brand actions"
