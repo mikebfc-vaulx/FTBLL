@@ -853,7 +853,7 @@ function renderAuthWidget() {
   const logged = Boolean(state.auth.token && state.auth.user);
   const name = displayName();
   const googleEnabled = Boolean(state.auth.googleClientId);
-  $("authNameLabel").textContent = logged ? name : (state.auth.user ? name : "Guest");
+  $("authNameLabel").textContent = logged ? name : "Guest";
   $("authAvatarImg").src = avatarPath(currentAvatar());
   $("googleSignInBox").classList.toggle("is-hidden", logged || !googleEnabled);
   $("googleFallbackBtn").classList.toggle("is-hidden", logged || googleEnabled);
@@ -952,33 +952,29 @@ window.handleGoogleCredential = async (response) => {
   }
 };
 
-async function logoutAccount() {
-  if (state.statsSavePromise) {
-    try {
-      await state.statsSavePromise;
-    } catch {
-      // Il backup locale conserva comunque la partita appena terminata.
-    }
-  }
+function logoutAccount() {
+  const logoutToken = state.auth.token;
   if (state.auth.token && state.auth.user) {
     const draftName = ($("displayNameInput").value || displayName()).replace(/[<>]/g, "").trim().slice(0, 18) || "Manager";
     state.auth.user = { ...state.auth.user, publicName: draftName, avatar: currentAvatar() };
     writeAccountCache();
-    try {
-      const savedProfile = await authedApi("/api/profile", { displayName: draftName, avatar: currentAvatar() });
-      state.auth.user = savedProfile.user;
-      writeAccountCache(savedProfile.user, mergeAccountStats(state.auth.stats, savedProfile.stats));
-    } catch {
-      // Il profilo resta nel backup locale associato a questo account.
-    }
   }
-  try {
-    await authedApi("/api/auth/logout", {});
-  } catch {
-    // Sessioni gia scadute o server riavviato: il logout locale resta valido.
-  }
+
+  // La sessione locale viene chiusa subito: il server non deve poter bloccare il pulsante.
   setAuthSession(null, null);
   renderStatsView();
+  window.google?.accounts?.id?.disableAutoSelect?.();
+
+  if (logoutToken) {
+    fetch("/api/auth/logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${logoutToken}` },
+      body: "{}",
+      keepalive: true
+    }).catch(() => {
+      // Anche se il server non risponde, la sessione locale e gia stata chiusa.
+    });
+  }
 }
 
 function emptyAccountStats() {
