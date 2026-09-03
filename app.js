@@ -828,7 +828,7 @@ function setAuthSession(token, user) {
   state.auth.token = token;
   state.auth.user = user
     ? preferredAccountUser({ ...user, avatar: profileAvatars.includes(user.avatar) ? user.avatar : profileAvatars[0] }, cachedUser)
-    : JSON.parse(localStorage.getItem("ftballGuestProfile") || "null");
+    : null;
   state.auth.stats = token && user ? normalizeAccountStats(cachedAccount?.stats) : null;
   if (token && user) {
     localStorage.setItem("ftballAuthToken", token);
@@ -853,15 +853,19 @@ function renderAuthWidget() {
   const logged = Boolean(state.auth.token && state.auth.user);
   const name = displayName();
   const googleEnabled = Boolean(state.auth.googleClientId);
-  $("authNameLabel").textContent = logged ? name : "Guest";
-  $("authAvatarImg").src = avatarPath(currentAvatar());
+  $("authNameLabel").textContent = logged ? name : "Non connesso";
+  $("authAvatarImg").src = logged ? avatarPath(currentAvatar()) : "/ftball-logo.svg?v=3";
   $("googleSignInBox").classList.toggle("is-hidden", logged || !googleEnabled);
   $("googleFallbackBtn").classList.toggle("is-hidden", logged || googleEnabled);
   $("logoutBtn").classList.toggle("is-hidden", !logged);
-  if (state.auth.user) {
+  if (logged) {
     $("hostNameInput").value = name;
     $("joinNameInput").value = name;
     $("displayNameInput").value = name;
+  } else {
+    $("hostNameInput").value = "Host";
+    $("joinNameInput").value = "Manager";
+    $("displayNameInput").value = "Manager";
   }
   renderAvatarPicker();
 }
@@ -952,7 +956,9 @@ window.handleGoogleCredential = async (response) => {
   }
 };
 
-function logoutAccount() {
+function logoutAccount(event) {
+  event?.preventDefault();
+  event?.stopPropagation();
   const logoutToken = state.auth.token;
   if (state.auth.token && state.auth.user) {
     const draftName = ($("displayNameInput").value || displayName()).replace(/[<>]/g, "").trim().slice(0, 18) || "Manager";
@@ -961,8 +967,15 @@ function logoutAccount() {
   }
 
   // La sessione locale viene chiusa subito: il server non deve poter bloccare il pulsante.
-  setAuthSession(null, null);
+  state.auth.token = null;
+  state.auth.user = null;
+  state.auth.stats = null;
+  localStorage.removeItem("ftballAuthToken");
+  localStorage.removeItem("ftballAuthUser");
+  localStorage.removeItem("ftballGuestProfile");
+  renderAuthWidget();
   renderStatsView();
+  showView("home");
   window.google?.accounts?.id?.disableAutoSelect?.();
 
   if (logoutToken) {
@@ -1113,6 +1126,7 @@ function renderStatsView(stats = emptyAccountStats()) {
   const safeStats = normalizeAccountStats(stats);
   if (state.auth.token) state.auth.stats = safeStats;
   const logged = Boolean(state.auth.token && state.auth.user);
+  $("statsView").classList.toggle("logged-out", !logged);
   $("statsStatusText").textContent = logged
     ? `Profilo ${state.auth.user.publicName}. Salviamo solo un id hashato e questo nome pubblico.`
     : "Accedi con Google per salvare progressi single player e online.";

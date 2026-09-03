@@ -1130,6 +1130,12 @@ input {
   margin-top: 18px;
 }
 
+#statsView.logged-out .profile-editor,
+#statsView.logged-out .account-stats-grid,
+#statsView.logged-out .player-stats-panel {
+  display: none;
+}
+
 .profile-editor {
   display: grid;
   gap: 14px;
