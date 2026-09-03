@@ -71,7 +71,18 @@ const generatedNames = {
 
 const playerColors = ["#1e8e4d", "#2f80ed", "#d64545", "#f2a900", "#9b51e0", "#00a6a6", "#f26b38", "#5b6ee1"];
 const profileAvatars = ["avatar-1.svg", "avatar-2.svg", "avatar-3.svg", "avatar-4.svg", "avatar-5.svg", "avatar-6.svg"];
-const avatarPath = (avatar) => `/avatars/${profileAvatars.includes(avatar) ? avatar : profileAvatars[0]}`;
+const embeddedAvatars = {
+  "avatar-1.svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="24" fill="#103d2b"/><circle cx="48" cy="34" r="17" fill="#ffd8aa"/><path d="M24 82c4-19 16-29 24-29s20 10 24 29" fill="#1ec978"/><path d="M31 32c5-14 28-16 34 0-10-5-22-5-34 0z" fill="#111"/><path d="M33 71h30" stroke="#f2c94c" stroke-width="6" stroke-linecap="round"/></svg>`,
+  "avatar-2.svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="24" fill="#461318"/><circle cx="48" cy="35" r="16" fill="#f3c79d"/><path d="M22 83c5-20 18-31 26-31s21 11 26 31" fill="#ff5d64"/><path d="M30 29c8-15 29-13 36 1-12-2-22-1-36-1z" fill="#3b2118"/><circle cx="70" cy="26" r="7" fill="#f2c94c"/></svg>`,
+  "avatar-3.svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="24" fill="#13294b"/><circle cx="48" cy="35" r="16" fill="#e7b98e"/><path d="M24 82c4-18 17-30 24-30s20 12 24 30" fill="#2f80ed"/><path d="M30 36c2-17 33-18 36-2-11-7-23-7-36 2z" fill="#e9edf5"/><path d="M39 68h18" stroke="#fff" stroke-width="5" stroke-linecap="round"/></svg>`,
+  "avatar-4.svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="24" fill="#2e174f"/><circle cx="48" cy="35" r="16" fill="#ffd4b8"/><path d="M22 83c6-18 18-30 26-30s20 12 26 30" fill="#9b51e0"/><path d="M31 31c6-16 29-16 34 1-9-4-23-4-34-1z" fill="#221326"/><path d="M25 24l7 7m39-7-7 7" stroke="#f2c94c" stroke-width="5" stroke-linecap="round"/></svg>`,
+  "avatar-5.svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="24" fill="#47320b"/><circle cx="48" cy="36" r="16" fill="#efc094"/><path d="M21 84c7-20 19-31 27-31s20 11 27 31" fill="#f2a900"/><path d="M29 32h38v11H29z" fill="#111"/><path d="M35 67h26" stroke="#103d2b" stroke-width="6" stroke-linecap="round"/></svg>`,
+  "avatar-6.svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="24" fill="#083a3d"/><circle cx="48" cy="35" r="16" fill="#f0c4a0"/><path d="M23 83c5-18 18-30 25-30s20 12 25 30" fill="#00a6a6"/><path d="M30 34c4-15 30-17 36 0-13-4-22-4-36 0z" fill="#151515"/><path d="M65 22l10 5-9 6" fill="#f2c94c"/></svg>`
+};
+const avatarPath = (avatar) => {
+  const safeAvatar = profileAvatars.includes(avatar) ? avatar : profileAvatars[0];
+  return `data:image/svg+xml,${encodeURIComponent(embeddedAvatars[safeAvatar])}`;
+};
 const tacticProfiles = {
   balanced: { attack: 1, defense: 1, shots: 1 },
   pressing: { attack: 1.05, defense: 0.98, shots: 1.05 },
