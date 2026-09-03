@@ -830,11 +830,13 @@ function currentAvatar() {
 function renderAuthWidget() {
   const logged = Boolean(state.auth.token && state.auth.user);
   const name = displayName();
+  const googleEnabled = Boolean(state.auth.googleClientId);
   $("authNameLabel").textContent = logged ? name : (state.auth.user ? name : "Guest");
   $("authAvatarImg").src = avatarPath(currentAvatar());
   $("homeProfileAvatar").src = avatarPath(currentAvatar());
   $("homeProfileName").textContent = logged || state.auth.user ? name : "Guest";
-  $("googleSignInBox").classList.toggle("is-hidden", logged || !state.auth.googleClientId);
+  $("googleSignInBox").classList.toggle("is-hidden", logged || !googleEnabled);
+  $("googleFallbackBtn").classList.toggle("is-hidden", logged || googleEnabled);
   $("logoutBtn").classList.toggle("is-hidden", !logged);
   if (state.auth.user) {
     $("hostNameInput").value = name;
@@ -875,7 +877,11 @@ async function initGoogleLogin() {
     const config = await api("/api/config");
     state.auth.googleClientId = config.googleClientId || null;
     renderAuthWidget();
-    if (!state.auth.googleClientId) return;
+    if (!state.auth.googleClientId) {
+      $("googleFallbackBtn").textContent = "Accedi con Google";
+      $("googleFallbackBtn").title = "Aggiungi GOOGLE_CLIENT_ID nelle variabili Environment di Render per attivare questo pulsante.";
+      return;
+    }
     const waitForGoogle = setInterval(() => {
       if (!window.google?.accounts?.id || state.auth.googleReady) return;
       clearInterval(waitForGoogle);

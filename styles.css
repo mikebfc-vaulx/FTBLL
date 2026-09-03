@@ -2504,6 +2504,25 @@ button:focus-visible {
   min-width: 178px;
 }
 
+.google-fallback-button {
+  min-height: 36px;
+  padding: 0 15px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(135deg, #4285f4, #34a853, #fbbc05, #ea4335) border-box;
+  color: #17201a;
+  font-weight: 900;
+  letter-spacing: 0;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+}
+
+.google-fallback-button:disabled {
+  cursor: help;
+  opacity: 0.82;
+}
+
 .is-hidden {
   display: none !important;
 }

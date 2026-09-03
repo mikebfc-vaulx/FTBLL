@@ -6,8 +6,8 @@
     <title>FTBALL Friends</title>
     <meta name="theme-color" content="#07110d" />
     <link rel="icon" href="ftball-logo.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=20" />
-    <link rel="stylesheet" href="modern-ui.css?v=20" />
+    <link rel="stylesheet" href="styles.css?v=21" />
+    <link rel="stylesheet" href="modern-ui.css?v=21" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body data-view="home">
@@ -33,6 +33,9 @@
             <img id="authAvatarImg" class="profile-avatar profile-avatar-small" src="avatars/avatar-1.svg" alt="" />
             <span id="authNameLabel" class="auth-name">Guest</span>
             <div id="googleSignInBox" class="google-signin-box"></div>
+            <button id="googleFallbackBtn" class="google-fallback-button" type="button" disabled title="Configura GOOGLE_CLIENT_ID su Render per attivare l'accesso Google">
+              Accedi con Google
+            </button>
             <button id="logoutBtn" class="ghost-button is-hidden" type="button">Esci</button>
           </div>
           <button id="resetBtn" class="ghost-button" type="button">Nuova partita</button>
