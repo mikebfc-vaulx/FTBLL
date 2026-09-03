@@ -8,6 +8,7 @@ const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const STATS_FILE = process.env.STATS_FILE || path.join(ROOT, "stats-store.json");
+const GOOGLE_CLIENT_ID_VALID = /^\d+-[a-z0-9-]+\.apps\.googleusercontent\.com$/i.test(GOOGLE_CLIENT_ID);
 const AVATARS = ["avatar-1.svg", "avatar-2.svg", "avatar-3.svg", "avatar-4.svg", "avatar-5.svg", "avatar-6.svg"];
 const LOBBY_TTL_MS = Number(process.env.LOBBY_TTL_MS || 1000 * 60 * 60 * 3);
 const FINISHED_LOBBY_TTL_MS = Number(process.env.FINISHED_LOBBY_TTL_MS || 1000 * 60 * 2);
@@ -235,14 +236,19 @@ function defaultUserStats() {
 
 function readStatsStore() {
   try {
-    return JSON.parse(fs.readFileSync(STATS_FILE, "utf8"));
+    const parsed = JSON.parse(fs.readFileSync(STATS_FILE, "utf8"));
+    return parsed && typeof parsed.users === "object" ? parsed : { users: {} };
   } catch {
     return { users: {} };
   }
 }
 
 function writeStatsStore(store) {
-  fs.writeFileSync(STATS_FILE, JSON.stringify(store, null, 2));
+  const directory = path.dirname(STATS_FILE);
+  const temporaryFile = `${STATS_FILE}.${process.pid}.tmp`;
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(temporaryFile, JSON.stringify(store, null, 2));
+  fs.renameSync(temporaryFile, STATS_FILE);
 }
 
 function statsForUser(userId) {
@@ -322,6 +328,7 @@ function decodeJwtPayload(token) {
 
 async function verifyGoogleCredential(credential) {
   if (!GOOGLE_CLIENT_ID) throw new Error("Google login non configurato");
+  if (!GOOGLE_CLIENT_ID_VALID) throw new Error("GOOGLE_CLIENT_ID non valido: usa un client OAuth di tipo Applicazione web");
   const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
   if (!response.ok) throw new Error("Token Google non valido");
   const verified = await response.json();
@@ -1040,7 +1047,17 @@ function updateStats(manager, gf, ga) {
 async function handleApi(req, res, parts, url) {
   const body = await readBody(req);
   if (req.method === "GET" && parts[1] === "config") {
-    return json(res, 200, { googleClientId: GOOGLE_CLIENT_ID, googleLoginEnabled: Boolean(GOOGLE_CLIENT_ID), avatars: AVATARS });
+    const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+    const protocol = forwardedProto || (req.socket.encrypted ? "https" : "http");
+    const appOrigin = `${protocol}://${req.headers.host}`;
+    return json(res, 200, {
+      googleClientId: GOOGLE_CLIENT_ID,
+      googleLoginEnabled: GOOGLE_CLIENT_ID_VALID,
+      googleClientIdValid: GOOGLE_CLIENT_ID_VALID,
+      appOrigin,
+      statsStorage: process.env.STATS_FILE ? "configured" : "local",
+      avatars: AVATARS
+    });
   }
   if (req.method === "POST" && parts[1] === "auth" && parts[2] === "google") {
     try {
@@ -1254,7 +1271,12 @@ function serveStatic(req, res, pathname) {
     };
     const type = mimeTypes[ext] || "application/octet-stream";
     const cacheControl = ext === ".html" ? "no-cache, no-store, must-revalidate" : "public, max-age=3600";
-    res.writeHead(200, { "Content-Type": type, "Cache-Control": cacheControl });
+    res.writeHead(200, {
+      "Content-Type": type,
+      "Cache-Control": cacheControl,
+      "Referrer-Policy": "no-referrer-when-downgrade",
+      "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
+    });
     res.end(content);
   });
 }
@@ -1292,6 +1314,8 @@ module.exports = {
   leadershipForPlayer,
   captainStyleForPlayer,
   comparePlayersByScoring,
+  statsForUser,
+  recordUserStats,
   playMatch,
   buildCalendarRounds,
   emptyStats,

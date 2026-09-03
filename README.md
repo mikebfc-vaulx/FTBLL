@@ -11,6 +11,23 @@ It includes:
 - ready system;
 - simulated league table and player stats.
 
+## Google login
+
+Create an OAuth 2.0 Client ID of type **Web application** in Google Cloud, then:
+
+1. add the exact public site origin (for example `https://ftball-friends.onrender.com`) to **Authorized JavaScript origins**;
+2. do not add a trailing slash or path;
+3. set that client ID as `GOOGLE_CLIENT_ID` in Render;
+4. redeploy the service after changing the environment variable.
+
+For local testing also authorize `http://localhost:3000`. The app uses a JavaScript callback, so an authorized redirect URI is not required.
+
+## Account statistics
+
+Statistics are stored separately for every Google account, using a one-way hash of the Google account ID. A completed championship is recorded once and contributes to the Single player or Online totals.
+
+`STATS_FILE` controls where the JSON store is written. Render's default filesystem is ephemeral, so durable storage requires mounting a persistent disk at `/var/data` and setting `STATS_FILE=/var/data/stats-store.json` (or replacing the JSON store with a database). Without a disk, data remains separate per account but can be lost after a restart or deploy. Login sessions are intentionally temporary; after a server restart users sign in again and recover their stored statistics.
+
 ## Multiplayer model
 
 The multiplayer server is intentionally simple:
@@ -60,13 +77,18 @@ Recommended files to commit:
 ```text
 index.html
 styles.css
+modern-ui.css
 app.js
 server.js
+players.js
+ftball-logo.svg
+avatars/
 package.json
 README.md
 .gitignore
 .devcontainer/devcontainer.json
 .github/workflows/check.yml
+render.yaml
 ```
 
 Do not commit `node_modules`.

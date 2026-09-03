@@ -71,7 +71,7 @@ const generatedNames = {
 
 const playerColors = ["#1e8e4d", "#2f80ed", "#d64545", "#f2a900", "#9b51e0", "#00a6a6", "#f26b38", "#5b6ee1"];
 const profileAvatars = ["avatar-1.svg", "avatar-2.svg", "avatar-3.svg", "avatar-4.svg", "avatar-5.svg", "avatar-6.svg"];
-const avatarPath = (avatar) => `avatars/${profileAvatars.includes(avatar) ? avatar : profileAvatars[0]}`;
+const avatarPath = (avatar) => `/avatars/${profileAvatars.includes(avatar) ? avatar : profileAvatars[0]}`;
 const tacticProfiles = {
   balanced: { attack: 1, defense: 1, shots: 1 },
   pressing: { attack: 1.05, defense: 0.98, shots: 1.05 },
@@ -882,13 +882,24 @@ async function initGoogleLogin() {
       $("googleFallbackBtn").title = "Aggiungi GOOGLE_CLIENT_ID nelle variabili Environment di Render per attivare questo pulsante.";
       return;
     }
+    if (!config.googleClientIdValid) {
+      state.auth.googleClientId = null;
+      renderAuthWidget();
+      $("googleFallbackBtn").textContent = "Google non configurato";
+      $("googleFallbackBtn").title = "GOOGLE_CLIENT_ID non e un Client ID OAuth di tipo Applicazione web valido.";
+      $("authNameLabel").textContent = "Config Google errata";
+      return;
+    }
+    $("googleSignInBox").title = `Se Google rifiuta l'accesso, aggiungi ${config.appOrigin} alle Origini JavaScript autorizzate del Client OAuth.`;
     const waitForGoogle = setInterval(() => {
       if (!window.google?.accounts?.id || state.auth.googleReady) return;
       clearInterval(waitForGoogle);
       state.auth.googleReady = true;
       window.google.accounts.id.initialize({
         client_id: state.auth.googleClientId,
-        callback: window.handleGoogleCredential
+        callback: window.handleGoogleCredential,
+        use_fedcm_for_prompt: true,
+        use_fedcm_for_button: true
       });
       window.google.accounts.id.renderButton($("googleSignInBox"), {
         theme: "filled_black",
@@ -897,6 +908,15 @@ async function initGoogleLogin() {
         shape: "pill"
       });
     }, 150);
+    setTimeout(() => {
+      if (state.auth.googleReady) return;
+      clearInterval(waitForGoogle);
+      state.auth.googleClientId = null;
+      renderAuthWidget();
+      $("googleFallbackBtn").textContent = "Google non disponibile";
+      $("googleFallbackBtn").title = "La libreria Google Identity Services non e stata caricata. Controlla ad-blocker e connessione.";
+      $("authNameLabel").textContent = "Google non disponibile";
+    }, 8000);
   } catch {
     $("authNameLabel").textContent = "Stats offline";
   }
@@ -1014,7 +1034,7 @@ async function recordCurrentMatchStats(ranking) {
   if (!user?.stats) return;
   const position = ranking.findIndex((manager) => manager.id === user.id || manager.isUser) + 1;
   if (!position) return;
-  const playerTotals = user.squad.reduce((totals, player) => {
+  const playerTotals = (user.squad || []).reduce((totals, player) => {
     totals.goals += player.stats?.goals || 0;
     totals.assists += player.stats?.assists || 0;
     return totals;
@@ -1168,7 +1188,7 @@ function applyMultiplayerSnapshot(snapshot) {
   } else if (snapshot.status === "results") {
     if (snapshot.results) {
       stopMultiplayerPolling();
-      state.managers = snapshot.results.standings.map((manager) => ({ ...manager, isUser: manager.id === state.multiplayer.playerId }));
+      state.managers = snapshot.managers.map((manager) => ({ ...manager, isUser: manager.id === state.multiplayer.playerId }));
       if (snapshot.results.skipResolved) {
         state.simulation = snapshot.results;
         clearInterval(state.liveSimulation.timer);
@@ -1461,7 +1481,7 @@ async function multiplayerStartSimulation() {
     const snapshot = await api(`/api/lobbies/${state.multiplayer.code}/simulate`, { playerId: state.multiplayer.playerId });
     if (snapshot.results?.rounds?.length) {
       stopMultiplayerPolling();
-      state.managers = snapshot.results.standings.map((manager) => ({ ...manager, isUser: manager.id === state.multiplayer.playerId }));
+      state.managers = snapshot.managers.map((manager) => ({ ...manager, isUser: manager.id === state.multiplayer.playerId }));
       startLiveSimulation(snapshot.results);
       return;
     }
@@ -2408,7 +2428,6 @@ function showResults() {
     const gdB = b.stats.gf - b.stats.ga;
     return b.stats.points - a.stats.points || gdB - gdA || b.stats.gf - a.stats.gf || teamRating(b) - teamRating(a);
   });
-  const userPosition = ranking.findIndex((manager) => manager.id === "user") + 1;
   const winner = ranking[0];
   $("resultTitle").textContent = `Coppa a ${winner?.name || "Vincitore"}`;
   $("winnerCelebration").innerHTML = `
