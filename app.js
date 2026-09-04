@@ -223,6 +223,7 @@ const state = {
   calledCount: 0,
   currentBid: 0,
   leaderId: null,
+  userBidThisAuction: false,
   timeLeft: 10,
   running: false,
   tickId: null,
@@ -465,6 +466,8 @@ function createManagers(config) {
       initialCredits: config.credits,
       reserveRate,
       reserveTarget: Math.round(config.credits * reserveRate),
+      desireSeed: Math.floor(Math.random() * 1000000000),
+      desireBias: 0.9 + Math.random() * 0.2,
       squad: [],
       formation: config.formation,
       tactic: "balanced",
@@ -544,6 +547,39 @@ function managerMissingSlots(manager) {
   }, 0);
 }
 
+function aiPositionUtility(manager, player) {
+  const formation = manager.formation || state.config.formation;
+  const exactNeed = roleCountOwned(manager, player.role) < roleCountNeeded(formation, player.role);
+  if (exactNeed) return 1.2;
+
+  const compatibleNeed = (compatibleRoleMoves[player.role] || []).some(
+    (role) => roleCountOwned(manager, role) < roleCountNeeded(formation, role)
+  );
+  if (compatibleNeed) return 1.05;
+  if (player.starPlayer || player.overall >= 89) return 0.88;
+  if (player.overall >= 84) return 0.74;
+  return 0.58;
+}
+
+function aiDesireMultiplier(manager, player, context = {}) {
+  const identity = `${manager.id}-${manager.desireSeed || 0}-${player.name}-${player.role}`;
+  const hash = [...identity].reduce((value, char) => (value * 33 + char.charCodeAt(0)) >>> 0, 5381);
+  const randomDesire = 0.62 + ((hash % 1001) / 1000) * 0.76;
+  const personality = manager.desireBias || 1;
+  const overallQuality = Math.max(0, Math.min(1, (player.overall - 65) / 30));
+  const overallFactor = 0.78 + overallQuality * 0.42;
+  const initialSpendable = Math.max(1, (context.initialCredits || manager.initialCredits || manager.credits) - (context.reserveTarget || 0));
+  const spendableRatio = Math.max(0, Math.min(1, (context.spendable ?? manager.credits) / initialSpendable));
+  const creditFactor = 0.7 + Math.sqrt(spendableRatio) * 0.32;
+  const plannedAllocation = Math.max(1, context.plannedAllocation || playerBasePrice(player));
+  const pricePressure = playerBasePrice(player) / plannedAllocation;
+  const budgetFit = pricePressure > 1.35 ? 0.8 : pricePressure < 0.68 ? 1.06 : 1;
+  const reserveSafety = (context.spendable ?? manager.credits) < plannedAllocation * 0.7 ? 0.72 : 1;
+  const positionUtility = context.positionUtility || aiPositionUtility(manager, player);
+  const weightedDesire = randomDesire * personality * overallFactor * positionUtility * creditFactor * budgetFit * reserveSafety;
+  return Math.max(0.34, Math.min(1.65, weightedDesire));
+}
+
 function aiMaxBid(manager, player) {
   const formation = manager.formation || state.config.formation;
   const neededForRole = roleCountNeeded(formation, player.role);
@@ -553,7 +589,7 @@ function aiMaxBid(manager, player) {
   const initialCredits = manager.initialCredits || state.config.credits;
   const reserveTarget = manager.reserveTarget ?? Math.round(initialCredits * 0.1);
   const spendable = Math.max(0, manager.credits - reserveTarget);
-  if (!spendable || !missingSlots) return 0;
+  if (!spendable) return 0;
 
   const auctionsLeft = Math.max(1, state.auctionPool.length - state.playerIndex);
   const competingTeams = Math.max(2, state.config.rivals + 1);
@@ -564,22 +600,34 @@ function aiMaxBid(manager, player) {
   const plannedAllocation = Math.min(currentAllocation, baseAllocation * 1.25);
   const quality = Math.max(0, Math.min(1, (player.overall - 68) / 25));
   const urgency = Math.max(0, missingSlots - expectedWinsLeft) * 0.035;
+  const positionUtility = aiPositionUtility(manager, player);
+  const desire = aiDesireMultiplier(manager, player, {
+    initialCredits,
+    reserveTarget,
+    spendable,
+    plannedAllocation,
+    positionUtility
+  });
 
   let value = playerBasePrice(player);
-  value *= fillsNeed ? 1.08 : 0.52;
+  value *= 0.82 + positionUtility * 0.22;
   value *= state.config.aiAggression;
   value *= 1 + Math.min(0.22, urgency);
+  value *= desire;
 
-  if (fillsNeed) {
-    const plannedOffer = plannedAllocation * (0.72 + quality * 0.48 + (player.starPlayer ? 0.12 : 0));
+  if (positionUtility >= 1) {
+    const plannedOffer = plannedAllocation * (0.72 + quality * 0.48 + (player.starPlayer ? 0.12 : 0)) * desire;
     value = Math.max(value, plannedOffer);
   }
   if (manager.squad.length < 4 && fillsNeed) value *= 1.04;
-  if (!fillsNeed && player.overall < 86) value *= 0.72;
+  if (positionUtility < 0.9 && player.overall < 86) value *= 0.76;
   if (manager.credits < initialCredits * 0.25) value *= 0.86;
 
   const perPlayerCapRate = player.starPlayer ? 0.21 : 0.18;
-  const smoothCap = fillsNeed ? plannedAllocation * (1.28 + quality * 0.16) : plannedAllocation * 0.68;
+  const desireCapFactor = 0.78 + desire * 0.28;
+  const smoothCap = positionUtility >= 1
+    ? plannedAllocation * (1.28 + quality * 0.16) * desireCapFactor
+    : plannedAllocation * 0.68 * desireCapFactor;
   const budgetCap = Math.min(initialCredits * perPlayerCapRate, smoothCap);
   return Math.max(0, Math.floor(Math.min(value, spendable, budgetCap)));
 }
@@ -763,6 +811,7 @@ function clearMatchState() {
   state.calledCount = 0;
   state.currentBid = 0;
   state.leaderId = null;
+  state.userBidThisAuction = false;
   state.timeLeft = 10;
   state.simulation = null;
   state.liveSimulation.roundIndex = 0;
@@ -1843,6 +1892,7 @@ async function saveLobbySettings() {
 function beginAuction() {
   state.currentBid = 0;
   state.leaderId = null;
+  state.userBidThisAuction = false;
   state.timeLeft = 10;
   state.running = true;
   renderGame();
@@ -1865,7 +1915,8 @@ function maybeAiBid() {
   const player = currentPlayer();
   if (!player || state.timeLeft <= 0) return;
 
-  const pressure = state.timeLeft < 3.5 ? 0.24 : 0.08;
+  const lateReveal = state.timeLeft <= 2.2;
+  const pressure = lateReveal ? 0.38 : state.timeLeft < 3.5 ? 0.22 : 0.08;
   const leastCovered = Math.max(
     0,
     ...state.managers.filter((manager) => !manager.isUser).map((manager) => managerMissingSlots(manager))
@@ -1877,16 +1928,18 @@ function maybeAiBid() {
 
   const aiManagers = state.managers.filter((manager) => !manager.isUser && manager.credits > state.currentBid);
   const interested = aiManagers
-    .map((manager) => {
-      const maxValue = aiMaxBid(manager, player);
-      return { manager, maxValue };
+    .map((manager, index) => {
+      const fullMaxValue = aiMaxBid(manager, player);
+      const concealedShare = 0.58 + (index % 4) * 0.055;
+      const maxValue = lateReveal ? fullMaxValue : Math.floor(fullMaxValue * concealedShare);
+      return { manager, maxValue, fullMaxValue };
     })
     .filter(({ maxValue }) => maxValue > state.currentBid + 1);
 
   if (!interested.length) return;
 
   const pick = forceLateBaseBid
-    ? interested.sort((a, b) => managerMissingSlots(b.manager) - managerMissingSlots(a.manager) || a.manager.squad.length - b.manager.squad.length)[0]
+    ? interested.sort((a, b) => b.maxValue - a.maxValue || b.fullMaxValue - a.fullMaxValue)[0]
     : interested[Math.floor(Math.random() * interested.length)];
   const increment = forceLateBaseBid ? Math.max(1, Math.min(5, Math.floor(playerBasePrice(player) * 0.18))) : [1, 2, 3, 5, 7][Math.floor(Math.random() * 5)];
   const bid = Math.min(pick.manager.credits, state.currentBid + increment, pick.maxValue);
@@ -1909,7 +1962,8 @@ function placeBid(managerId, amount) {
 
   state.currentBid = amount;
   state.leaderId = managerId;
-  if (state.timeLeft < 5) {
+  const isCpuSnipe = state.mode === "single" && !manager.isUser && state.timeLeft <= 2.2;
+  if (state.timeLeft < 5 && !isCpuSnipe) {
     state.timeLeft = 5;
   }
   renderGame();
@@ -1959,7 +2013,31 @@ function userBid(increment) {
     $("auctionMessage").textContent = "Crediti insufficienti per questo rilancio.";
     return;
   }
-  placeBid(user.id, nextBid);
+  if (placeBid(user.id, nextBid)) {
+    state.userBidThisAuction = true;
+    renderAuction();
+  }
+}
+
+function skipAuctionPlayer() {
+  if (state.mode !== "single" || !state.running || state.userBidThisAuction) return;
+  const player = currentPlayer();
+  if (!player) return;
+
+  const candidates = state.managers
+    .filter((manager) => !manager.isUser && manager.credits > 0)
+    .map((manager) => ({ manager, maxValue: aiMaxBid(manager, player) }))
+    .sort((a, b) => b.maxValue - a.maxValue || managerMissingSlots(b.manager) - managerMissingSlots(a.manager));
+  const winner = candidates[0];
+  if (!winner) return;
+
+  const secondValue = candidates[1]?.maxValue || Math.round(playerBasePrice(player) * 0.62);
+  const minimumWinningBid = state.leaderId === winner.manager.id ? state.currentBid : state.currentBid + 1;
+  const theoreticalPrice = Math.max(minimumWinningBid, secondValue + 1, Math.round(playerBasePrice(player) * 0.68));
+  state.leaderId = winner.manager.id;
+  state.currentBid = Math.max(1, Math.min(winner.manager.credits, Math.max(winner.maxValue, 1), theoreticalPrice));
+  $("auctionMessage").textContent = `${player.name}: asta simulata tra le CPU.`;
+  closeAuction();
 }
 
 function teamRating(manager) {
@@ -2321,6 +2399,13 @@ function renderAuction() {
     const increment = Number(button.dataset.bid);
     button.disabled = state.multiplayer.bidPending || !state.running || state.currentBid + increment > getUser().credits || state.leaderId === currentUserId();
   });
+  const skipButton = $("skipAuctionBtn");
+  const skipAvailable = state.mode === "single" && state.running && !state.userBidThisAuction;
+  skipButton.classList.toggle("is-hidden", state.mode !== "single");
+  skipButton.disabled = !skipAvailable;
+  skipButton.title = state.userBidThisAuction
+    ? "Skip non disponibile: hai gia effettuato un'offerta per questo giocatore."
+    : "Simula subito le offerte delle CPU.";
 }
 
 function renderManagers() {
@@ -2961,6 +3046,7 @@ $("autoFillBtn").addEventListener("click", () => {
   renderSquadBuilder();
 });
 $("simulateBtn").addEventListener("click", simulateSeason);
+$("skipAuctionBtn").addEventListener("click", skipAuctionPlayer);
 
 document.querySelectorAll("[data-bid]").forEach((button) => {
   button.addEventListener("click", () => userBid(Number(button.dataset.bid)));
