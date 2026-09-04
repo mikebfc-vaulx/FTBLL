@@ -1317,7 +1317,7 @@ setInterval(cleanupLobbies, CLEANUP_INTERVAL_MS).unref();
 
 if (require.main === module) {
   server.listen(PORT, "0.0.0.0", () => {
-    console.log(`FTBALL Friends multiplayer server: http://0.0.0.0:${PORT}`);
+    console.log(`FutBidder multiplayer server: http://0.0.0.0:${PORT}`);
     console.log(`Temporary lobby TTL: ${Math.round(LOBBY_TTL_MS / 60000)} minutes`);
   });
 }

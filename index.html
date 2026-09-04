@@ -3,21 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FTBALL Friends</title>
+    <title>FutBidder</title>
+    <meta name="description" content="FutBidder: asta calcistica, gestione della rosa e campionato contro amici o intelligenza artificiale." />
     <meta name="theme-color" content="#07110d" />
-    <link rel="icon" href="/ftball-logo.svg?v=3" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=26" />
+    <link rel="icon" href="/futbidder-logo.svg?v=1" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css?v=27" />
     <link rel="stylesheet" href="modern-ui.css?v=24" />
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body data-view="home">
     <main class="app-shell">
       <section class="topbar">
         <div class="brand-lockup">
-          <img class="brand-logo" src="/ftball-logo.svg?v=3" alt="Logo FTBALL Friends" width="48" height="56" />
+          <img class="brand-logo" src="/futbidder-logo.svg?v=1" alt="Logo FutBidder" width="48" height="56" />
           <div>
-            <p class="eyebrow">Football auction manager</p>
-            <h1>FTBALL <span>Friends</span></h1>
+            <p class="eyebrow">Football auction game</p>
+            <h1>Fut<span>Bidder</span></h1>
           </div>
         </div>
         <nav class="phase-tabs" aria-label="Fasi della partita">
@@ -30,7 +30,7 @@
         <div class="topbar-actions">
           <button id="statsMenuBtn" class="ghost-button" type="button">Statistiche</button>
           <div class="auth-widget">
-            <img id="authAvatarImg" class="profile-avatar profile-avatar-small" src="/ftball-logo.svg?v=3" alt="" />
+            <img id="authAvatarImg" class="profile-avatar profile-avatar-small" src="/futbidder-logo.svg?v=1" alt="" />
             <span id="authNameLabel" class="auth-name">Non connesso</span>
             <button id="editProfileBtn" class="profile-edit-trigger is-hidden" type="button" aria-label="Modifica profilo" title="Modifica profilo dalla home">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Zm13.7-16.7a1 1 0 0 1 1.4 0l1.6 1.6a1 1 0 0 1 0 1.4L19.4 7.6l-4-4 1.3-1.3Z" /></svg>
@@ -224,7 +224,7 @@
           <aside class="panel manager-panel">
             <p id="userPanelTitle" class="eyebrow">Manager</p>
             <div class="manager-profile-head">
-              <img id="gameProfileAvatar" class="profile-avatar" src="/ftball-logo.svg?v=3" alt="" />
+              <img id="gameProfileAvatar" class="profile-avatar" src="/futbidder-logo.svg?v=1" alt="" />
               <div>
                 <h2>La tua squadra</h2>
                 <strong id="gameProfileName">Manager</strong>
@@ -413,6 +413,13 @@
           </aside>
         </div>
       </section>
+
+      <footer class="site-footer" aria-label="Informazioni legali">
+        <span>© 2026 FutBidder</span>
+        <button id="openPrivacyBtn" type="button">Privacy Policy</button>
+        <button id="openCookiePolicyBtn" type="button">Cookie Policy</button>
+        <button id="manageCookiesBtn" type="button">Gestisci cookie</button>
+      </footer>
     </main>
 
     <div id="statsModal" class="site-modal is-hidden" aria-hidden="true">
@@ -467,7 +474,93 @@
         </div>
       </section>
     </div>
+
+    <div id="privacyModal" class="site-modal legal-modal is-hidden" aria-hidden="true">
+      <button class="site-modal-backdrop" type="button" data-close-legal aria-label="Chiudi Privacy Policy"></button>
+      <article class="site-dialog legal-dialog" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+        <header class="site-dialog-header">
+          <div>
+            <p class="eyebrow">Informativa sul trattamento dei dati</p>
+            <h2 id="privacyTitle">Privacy Policy</h2>
+          </div>
+          <button class="dialog-close-button" type="button" data-close-legal aria-label="Chiudi Privacy Policy">&times;</button>
+        </header>
+        <div class="legal-copy">
+          <p class="policy-updated">Ultimo aggiornamento: 4 settembre 2026</p>
+          <section>
+            <h3>1. Titolare del trattamento</h3>
+            <p>Il titolare è il gestore del servizio FutBidder. I dati identificativi completi e un recapito dedicato alle richieste privacy devono essere inseriti dal gestore prima della pubblicazione definitiva del servizio.</p>
+          </section>
+          <section>
+            <h3>2. Dati trattati</h3>
+            <p>FutBidder tratta i dati tecnici necessari al funzionamento, il nome pubblico e l’avatar scelti, i dati delle lobby e delle partite, le rose, i risultati e le statistiche. Con l’accesso Google riceve l’identificativo tecnico dell’account, che viene trasformato in un hash unidirezionale prima dell’archiviazione; non richiede la password Google.</p>
+          </section>
+          <section>
+            <h3>3. Finalità e basi del trattamento</h3>
+            <p>I dati sono utilizzati per autenticare l’utente, creare e gestire partite, sincronizzare lobby, salvare profilo e statistiche, prevenire errori o abusi e mantenere il servizio sicuro. I trattamenti necessari all’uso del gioco si basano sull’esecuzione del servizio richiesto; il caricamento di Google Identity e delle relative tecnologie funzionali avviene solo dopo una scelta dell’utente.</p>
+          </section>
+          <section>
+            <h3>4. Conservazione e destinatari</h3>
+            <p>Le sessioni sono temporanee; le lobby inattive vengono eliminate automaticamente. Le statistiche dell’account restano conservate finché sono necessarie al servizio o fino a una richiesta di cancellazione. Una copia di recupero può restare nel browser finché l’utente non esegue il logout o cancella i dati del sito. I dati possono essere trattati dai fornitori tecnici di hosting e, se autorizzato, da Google per l’accesso.</p>
+          </section>
+          <section>
+            <h3>5. Trasferimenti e sicurezza</h3>
+            <p>Alcuni fornitori possono trattare dati fuori dallo Spazio Economico Europeo applicando i meccanismi di garanzia previsti dalla normativa. FutBidder limita i dati raccolti e usa token temporanei e identificativi hashati, ma nessun sistema online può garantire sicurezza assoluta.</p>
+          </section>
+          <section>
+            <h3>6. Diritti dell’utente</h3>
+            <p>L’utente può chiedere accesso, rettifica, cancellazione, limitazione, portabilità o opposizione nei casi previsti, revocare il consenso senza pregiudicare i trattamenti precedenti e proporre reclamo al Garante per la protezione dei dati personali. Per esercitare tali diritti dovrà usare il recapito privacy indicato dal titolare.</p>
+          </section>
+          <section>
+            <h3>7. Minori e aggiornamenti</h3>
+            <p>I minori devono usare il servizio con l’autorizzazione di chi esercita la responsabilità genitoriale quando richiesta dalla legge. Questa informativa può essere aggiornata se cambiano funzioni, fornitori o modalità di trattamento.</p>
+          </section>
+        </div>
+      </article>
+    </div>
+
+    <div id="cookiePolicyModal" class="site-modal legal-modal is-hidden" aria-hidden="true">
+      <button class="site-modal-backdrop" type="button" data-close-legal aria-label="Chiudi Cookie Policy"></button>
+      <article class="site-dialog legal-dialog" role="dialog" aria-modal="true" aria-labelledby="cookiePolicyTitle">
+        <header class="site-dialog-header">
+          <div>
+            <p class="eyebrow">Preferenze del browser</p>
+            <h2 id="cookiePolicyTitle">Cookie Policy</h2>
+          </div>
+          <button class="dialog-close-button" type="button" data-close-legal aria-label="Chiudi Cookie Policy">&times;</button>
+        </header>
+        <div class="legal-copy">
+          <p class="policy-updated">Ultimo aggiornamento: 4 settembre 2026</p>
+          <p>FutBidder usa tecnologie di archiviazione locale assimilabili ai cookie. Al momento non utilizza cookie pubblicitari, di profilazione o strumenti analytics.</p>
+          <div class="cookie-table" role="table" aria-label="Tecnologie utilizzate">
+            <div class="cookie-table-row cookie-table-head" role="row"><strong>Categoria</strong><strong>Uso</strong><strong>Durata</strong></div>
+            <div class="cookie-table-row" role="row"><strong>Necessari</strong><span>Preferenza cookie, sessione, profilo locale e copia di recupero delle statistiche.</span><span>Sessione o fino alla cancellazione; preferenza per massimo 6 mesi.</span></div>
+            <div class="cookie-table-row" role="row"><strong>Funzionali Google</strong><span>Caricamento di Google Identity per effettuare l’accesso. Possono essere usate tecnologie di terze parti Google.</span><span>Secondo le impostazioni e l’informativa di Google.</span></div>
+          </div>
+          <h3>Come modificare la scelta</h3>
+          <p>Puoi riaprire in qualsiasi momento il pannello tramite “Gestisci cookie” nel piè di pagina. Se scegli “Solo necessari”, Google Identity non viene caricato e il gioco resta utilizzabile senza accesso Google.</p>
+          <button id="manageCookiesFromPolicyBtn" class="primary-button" type="button">Gestisci preferenze</button>
+        </div>
+      </article>
+    </div>
+
+    <aside id="cookieBanner" class="cookie-banner is-hidden" role="dialog" aria-modal="false" aria-labelledby="cookieBannerTitle" aria-hidden="true">
+      <button id="cookieBannerCloseBtn" class="cookie-banner-close" type="button" aria-label="Continua solo con i cookie necessari">&times;</button>
+      <div class="cookie-banner-copy">
+        <p class="eyebrow">Le tue preferenze</p>
+        <h2 id="cookieBannerTitle">Cookie e accesso Google</h2>
+        <p>Usiamo solo l’archiviazione necessaria al gioco. Con il tuo consenso carichiamo anche Google Identity per permetterti di accedere e sincronizzare le statistiche.</p>
+        <div class="cookie-inline-links">
+          <button id="cookiePrivacyLink" type="button">Privacy Policy</button>
+          <button id="cookiePolicyLink" type="button">Cookie Policy</button>
+        </div>
+      </div>
+      <div class="cookie-banner-actions">
+        <button id="essentialCookiesBtn" class="ghost-button" type="button">Solo necessari</button>
+        <button id="acceptCookiesBtn" class="primary-button" type="button">Accetta tutti</button>
+      </div>
+    </aside>
     <script src="players.js?v=20"></script>
-    <script src="app.js?v=35"></script>
+    <script src="app.js?v=37"></script>
   </body>
 </html>

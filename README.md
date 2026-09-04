@@ -1,6 +1,6 @@
-# FTBALL Friends
+# FutBidder
 
-FTBALL Friends is a browser football manager party game.
+FutBidder is a browser football auction and manager game.
 
 It includes:
 
@@ -15,12 +15,18 @@ It includes:
 
 Create an OAuth 2.0 Client ID of type **Web application** in Google Cloud, then:
 
-1. add the exact public site origin (for example `https://ftball-friends.onrender.com`) to **Authorized JavaScript origins**;
+1. add the exact public site origin (for example `https://ftbll-1.onrender.com`) to **Authorized JavaScript origins**;
 2. do not add a trailing slash or path;
 3. set that client ID as `GOOGLE_CLIENT_ID` in Render;
 4. redeploy the service after changing the environment variable.
 
 For local testing also authorize `http://localhost:3000`. The app uses a JavaScript callback, so an authorized redirect URI is not required.
+
+Google Identity is loaded only after the user accepts functional cookies from the consent banner.
+
+## Privacy and cookie preferences
+
+The footer opens the Privacy Policy, Cookie Policy, and cookie preference panel. The preference is stored locally for up to 180 days. Choosing only necessary storage keeps Google Identity disabled while leaving the game available.
 
 ## Account statistics
 
@@ -83,7 +89,7 @@ modern-ui.css
 app.js
 server.js
 players.js
-ftball-logo.svg
+futbidder-logo.svg
 avatars/
 package.json
 README.md

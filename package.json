@@ -1,7 +1,7 @@
 {
-  "name": "ftball-friends",
+  "name": "futbidder",
   "version": "0.1.0",
-  "description": "Browser football manager party game with single player and temporary multiplayer lobbies.",
+  "description": "FutBidder browser football auction game with single player and temporary multiplayer lobbies.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

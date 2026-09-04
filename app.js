@@ -205,6 +205,19 @@ function readStoredJson(key) {
   }
 }
 
+const cookieConsentKey = "futbidderCookieConsent";
+const cookieConsentLifetimeMs = 1000 * 60 * 60 * 24 * 180;
+
+function readCookieConsent() {
+  const consent = readStoredJson(cookieConsentKey);
+  if (!consent || consent.version !== 1 || !consent.savedAt) return null;
+  if (Date.now() - Number(consent.savedAt) > cookieConsentLifetimeMs) {
+    localStorage.removeItem(cookieConsentKey);
+    return null;
+  }
+  return { version: 1, necessary: true, functional: Boolean(consent.functional), savedAt: Number(consent.savedAt) };
+}
+
 let restoredAuthToken = localStorage.getItem("ftballAuthToken") || null;
 const restoredAuthUser = restoredAuthToken ? readStoredJson("ftballAuthUser") : null;
 if (!restoredAuthUser) {
@@ -225,6 +238,8 @@ const state = {
   leaderId: null,
   userBidThisAuction: false,
   timeLeft: 10,
+  aiLateBidAt: 1,
+  aiLateBidTriggered: false,
   running: false,
   tickId: null,
   simulation: null,
@@ -251,6 +266,8 @@ const state = {
   statsModalOpen: false,
   profileModalOpen: false,
   profileDraftAvatar: null,
+  legalModalOpen: null,
+  cookieConsent: readCookieConsent(),
   auth: {
     token: restoredAuthToken,
     user: restoredAuthUser,
@@ -976,10 +993,16 @@ function renderAuthWidget() {
   const name = displayName();
   const googleEnabled = Boolean(state.auth.googleClientId);
   $("authNameLabel").textContent = logged ? name : "Non connesso";
-  $("authAvatarImg").src = logged ? avatarPath(currentAvatar()) : "/ftball-logo.svg?v=3";
+  $("authAvatarImg").src = logged ? avatarPath(currentAvatar()) : "/futbidder-logo.svg?v=1";
   $("editProfileBtn").classList.toggle("is-hidden", !logged);
-  $("googleSignInBox").classList.toggle("is-hidden", logged || !googleEnabled);
-  $("googleFallbackBtn").classList.toggle("is-hidden", logged || googleEnabled);
+  const googleAllowed = googleEnabled && Boolean(state.cookieConsent?.functional);
+  $("googleSignInBox").classList.toggle("is-hidden", logged || !googleAllowed);
+  $("googleFallbackBtn").classList.toggle("is-hidden", logged || googleAllowed);
+  $("googleFallbackBtn").disabled = !googleEnabled;
+  if (!logged && googleEnabled && !googleAllowed) {
+    $("googleFallbackBtn").textContent = "Abilita accesso Google";
+    $("googleFallbackBtn").title = "Accetta i cookie funzionali per caricare Google Identity.";
+  }
   $("logoutBtn").classList.toggle("is-hidden", !logged);
   if (logged) {
     $("hostNameInput").value = name;
@@ -1028,7 +1051,7 @@ function renderAvatarPicker() {
 }
 
 function syncModalPageState() {
-  document.body.classList.toggle("modal-open", state.statsModalOpen || state.profileModalOpen);
+  document.body.classList.toggle("modal-open", state.statsModalOpen || state.profileModalOpen || Boolean(state.legalModalOpen));
 }
 
 function openStatsModal() {
@@ -1071,6 +1094,75 @@ function closeProfileModal() {
   syncModalPageState();
 }
 
+function openLegalModal(type) {
+  closeStatsModal();
+  closeProfileModal();
+  closeLegalModal();
+  const modal = type === "cookie" ? $("cookiePolicyModal") : $("privacyModal");
+  state.legalModalOpen = type;
+  modal.classList.remove("is-hidden");
+  modal.setAttribute("aria-hidden", "false");
+  syncModalPageState();
+  modal.querySelector(".dialog-close-button")?.focus();
+}
+
+function closeLegalModal() {
+  [$("privacyModal"), $("cookiePolicyModal")].forEach((modal) => {
+    modal?.classList.add("is-hidden");
+    modal?.setAttribute("aria-hidden", "true");
+  });
+  state.legalModalOpen = null;
+  syncModalPageState();
+}
+
+function showCookieBanner() {
+  $("cookieBanner").classList.remove("is-hidden");
+  $("cookieBanner").setAttribute("aria-hidden", "false");
+}
+
+function hideCookieBanner() {
+  $("cookieBanner").classList.add("is-hidden");
+  $("cookieBanner").setAttribute("aria-hidden", "true");
+}
+
+function saveCookieConsent(functional) {
+  const previouslyFunctional = Boolean(state.cookieConsent?.functional);
+  state.cookieConsent = { version: 1, necessary: true, functional: Boolean(functional), savedAt: Date.now() };
+  localStorage.setItem(cookieConsentKey, JSON.stringify(state.cookieConsent));
+  hideCookieBanner();
+  renderAuthWidget();
+  if (functional) {
+    initGoogleLogin();
+  } else if (previouslyFunctional && document.querySelector('script[data-google-identity]')) {
+    window.location.reload();
+  }
+}
+
+function initializeCookieConsent() {
+  if (!state.cookieConsent) showCookieBanner();
+}
+
+function loadGoogleIdentityScript() {
+  if (window.google?.accounts?.id) return Promise.resolve();
+  const existing = document.querySelector('script[data-google-identity]');
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", reject, { once: true });
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentity = "true";
+    script.addEventListener("load", resolve, { once: true });
+    script.addEventListener("error", reject, { once: true });
+    document.head.appendChild(script);
+  });
+}
+
 async function initGoogleLogin() {
   try {
     const config = await api("/api/config");
@@ -1089,35 +1181,34 @@ async function initGoogleLogin() {
       $("authNameLabel").textContent = "Config Google errata";
       return;
     }
-    $("googleSignInBox").title = `Se Google rifiuta l'accesso, aggiungi ${config.appOrigin} alle Origini JavaScript autorizzate del Client OAuth.`;
-    const waitForGoogle = setInterval(() => {
-      if (!window.google?.accounts?.id || state.auth.googleReady) return;
-      clearInterval(waitForGoogle);
-      state.auth.googleReady = true;
-      window.google.accounts.id.initialize({
-        client_id: state.auth.googleClientId,
-        callback: window.handleGoogleCredential,
-        use_fedcm_for_prompt: true,
-        use_fedcm_for_button: true
-      });
-      window.google.accounts.id.renderButton($("googleSignInBox"), {
-        theme: "filled_black",
-        size: "medium",
-        text: "signin_with",
-        shape: "pill"
-      });
-    }, 150);
-    setTimeout(() => {
-      if (state.auth.googleReady) return;
-      clearInterval(waitForGoogle);
-      state.auth.googleClientId = null;
+    if (!state.cookieConsent?.functional) {
       renderAuthWidget();
-      $("googleFallbackBtn").textContent = "Google non disponibile";
-      $("googleFallbackBtn").title = "La libreria Google Identity Services non e stata caricata. Controlla ad-blocker e connessione.";
-      $("authNameLabel").textContent = "Google non disponibile";
-    }, 8000);
+      return;
+    }
+    $("googleSignInBox").title = `Se Google rifiuta l'accesso, aggiungi ${config.appOrigin} alle Origini JavaScript autorizzate del Client OAuth.`;
+    await loadGoogleIdentityScript();
+    if (state.auth.googleReady) return;
+    state.auth.googleReady = true;
+    window.google.accounts.id.initialize({
+      client_id: state.auth.googleClientId,
+      callback: window.handleGoogleCredential,
+      use_fedcm_for_prompt: true,
+      use_fedcm_for_button: true
+    });
+    $("googleSignInBox").innerHTML = "";
+    window.google.accounts.id.renderButton($("googleSignInBox"), {
+      theme: "filled_black",
+      size: "medium",
+      text: "signin_with",
+      shape: "pill"
+    });
+    renderAuthWidget();
   } catch {
-    $("authNameLabel").textContent = "Stats offline";
+    if (state.cookieConsent?.functional) {
+      $("googleFallbackBtn").textContent = "Google non disponibile";
+      $("googleFallbackBtn").title = "Google Identity non è stato caricato. Controlla ad-blocker e connessione.";
+      $("authNameLabel").textContent = "Stats offline";
+    }
   }
 }
 
@@ -1954,11 +2045,17 @@ function beginAuction() {
   state.leaderId = null;
   state.userBidThisAuction = false;
   state.timeLeft = 10;
+  scheduleNextAiLateBid();
   state.running = true;
   renderGame();
   $("auctionMessage").textContent = "Nuovo giocatore sul mercato. Scegli se entrare nell'asta.";
   clearInterval(state.tickId);
   state.tickId = setInterval(tickAuction, 100);
+}
+
+function scheduleNextAiLateBid() {
+  state.aiLateBidAt = 0.35 + Math.random() * 1.6;
+  state.aiLateBidTriggered = false;
 }
 
 function tickAuction() {
@@ -1975,18 +2072,22 @@ function maybeAiBid() {
   const player = currentPlayer();
   if (!player || state.timeLeft <= 0) return;
 
-  const lateReveal = state.timeLeft <= 2.2;
-  const pressure = lateReveal ? 0.38 : state.timeLeft < 3.5 ? 0.22 : 0.08;
+  const insideLateWindow = state.timeLeft <= 2;
+  const lateReveal = insideLateWindow && !state.aiLateBidTriggered && state.timeLeft <= state.aiLateBidAt;
+  if (insideLateWindow && !lateReveal) return;
+  if (lateReveal) state.aiLateBidTriggered = true;
+
+  const pressure = state.timeLeft < 3.5 ? 0.18 : 0.08;
   const leastCovered = Math.max(
     0,
     ...state.managers.filter((manager) => !manager.isUser).map((manager) => managerMissingSlots(manager))
   );
   const scarcityBoost = Math.min(0.18, leastCovered * 0.012);
   const randomGate = pressure * state.config.aiAggression + scarcityBoost;
-  const forceLateBaseBid = !state.leaderId && state.timeLeft < 1.4;
-  if (!forceLateBaseBid && Math.random() > randomGate) return;
+  const forceLateBaseBid = lateReveal && !state.leaderId;
+  if (!lateReveal && Math.random() > randomGate) return;
 
-  const aiManagers = state.managers.filter((manager) => !manager.isUser && manager.credits > state.currentBid);
+  const aiManagers = state.managers.filter((manager) => !manager.isUser && manager.id !== state.leaderId && manager.credits > state.currentBid);
   const interested = aiManagers
     .map((manager, index) => {
       const fullMaxValue = aiMaxBid(manager, player);
@@ -2022,9 +2123,9 @@ function placeBid(managerId, amount) {
 
   state.currentBid = amount;
   state.leaderId = managerId;
-  const isCpuSnipe = state.mode === "single" && !manager.isUser && state.timeLeft <= 2.2;
-  if (state.timeLeft < 5 && !isCpuSnipe) {
+  if (state.timeLeft < 5) {
     state.timeLeft = 5;
+    if (state.mode === "single") scheduleNextAiLateBid();
   }
   renderGame();
   return true;
@@ -3076,10 +3177,26 @@ $("statsMenuBtn").addEventListener("click", () => {
 });
 $("logoutBtn").addEventListener("click", logoutAccount);
 $("editProfileBtn").addEventListener("click", openProfileModal);
+$("googleFallbackBtn").addEventListener("click", () => {
+  if (state.auth.googleClientId && !state.cookieConsent?.functional) showCookieBanner();
+});
 $("closeStatsModalBtn").addEventListener("click", closeStatsModal);
 $("closeProfileModalBtn").addEventListener("click", closeProfileModal);
 document.querySelector('[data-close-modal="stats"]').addEventListener("click", closeStatsModal);
 document.querySelector('[data-close-modal="profile"]').addEventListener("click", closeProfileModal);
+$("openPrivacyBtn").addEventListener("click", () => openLegalModal("privacy"));
+$("openCookiePolicyBtn").addEventListener("click", () => openLegalModal("cookie"));
+$("manageCookiesBtn").addEventListener("click", showCookieBanner);
+$("manageCookiesFromPolicyBtn").addEventListener("click", () => {
+  closeLegalModal();
+  showCookieBanner();
+});
+$("cookiePrivacyLink").addEventListener("click", () => openLegalModal("privacy"));
+$("cookiePolicyLink").addEventListener("click", () => openLegalModal("cookie"));
+$("essentialCookiesBtn").addEventListener("click", () => saveCookieConsent(false));
+$("cookieBannerCloseBtn").addEventListener("click", () => saveCookieConsent(false));
+$("acceptCookiesBtn").addEventListener("click", () => saveCookieConsent(true));
+document.querySelectorAll("[data-close-legal]").forEach((button) => button.addEventListener("click", closeLegalModal));
 $("saveProfileBtn").addEventListener("click", saveProfile);
 $("createLobbyBtn").addEventListener("click", createMultiplayerLobby);
 $("joinLobbyBtn").addEventListener("click", joinMultiplayerLobby);
@@ -3140,10 +3257,12 @@ window.addEventListener("beforeunload", () => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  if (state.profileModalOpen) closeProfileModal();
+  if (state.legalModalOpen) closeLegalModal();
+  else if (state.profileModalOpen) closeProfileModal();
   else if (state.statsModalOpen) closeStatsModal();
 });
 
+initializeCookieConsent();
 renderAuthWidget();
 initGoogleLogin();
 validateRestoredSession();
