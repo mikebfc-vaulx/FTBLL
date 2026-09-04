@@ -196,6 +196,23 @@ const captainStyleLabels = {
   calm: "Leader calmo"
 };
 
+function readStoredJson(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null");
+  } catch {
+    localStorage.removeItem(key);
+    return null;
+  }
+}
+
+let restoredAuthToken = localStorage.getItem("ftballAuthToken") || null;
+const restoredAuthUser = restoredAuthToken ? readStoredJson("ftballAuthUser") : null;
+if (!restoredAuthUser) {
+  restoredAuthToken = null;
+  localStorage.removeItem("ftballAuthToken");
+  localStorage.removeItem("ftballAuthUser");
+}
+
 const state = {
   view: "home",
   mode: "single",
@@ -230,8 +247,8 @@ const state = {
   pendingTacticalPlan: null,
   pendingCaptainId: null,
   auth: {
-    token: localStorage.getItem("ftballAuthToken") || null,
-    user: JSON.parse(localStorage.getItem("ftballAuthUser") || "null") || JSON.parse(localStorage.getItem("ftballGuestProfile") || "null"),
+    token: restoredAuthToken,
+    user: restoredAuthUser,
     stats: null,
     googleClientId: null,
     googleReady: false
@@ -806,8 +823,25 @@ async function api(path, payload = null) {
     : { method: "GET" };
   const response = await fetch(path, options);
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Errore server");
+  if (!response.ok) {
+    const error = new Error(data.error || "Errore server");
+    error.status = response.status;
+    throw error;
+  }
   return data;
+}
+
+function clearLocalAuthSession({ returnHome = false } = {}) {
+  state.auth.token = null;
+  state.auth.user = null;
+  state.auth.stats = null;
+  localStorage.removeItem("ftballAuthToken");
+  localStorage.removeItem("ftballAuthUser");
+  localStorage.removeItem("ftballGuestProfile");
+  renderAuthWidget();
+  renderStatsView();
+  window.google?.accounts?.id?.disableAutoSelect?.();
+  if (returnHome) showView("home");
 }
 
 async function authedApi(path, payload = null) {
@@ -817,7 +851,11 @@ async function authedApi(path, payload = null) {
     : { method: "GET", headers: { Authorization: `Bearer ${state.auth.token}` } };
   const response = await fetch(path, options);
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Errore server");
+  if (!response.ok) {
+    const error = new Error(data.error || "Errore server");
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 
@@ -967,16 +1005,7 @@ function logoutAccount(event) {
   }
 
   // La sessione locale viene chiusa subito: il server non deve poter bloccare il pulsante.
-  state.auth.token = null;
-  state.auth.user = null;
-  state.auth.stats = null;
-  localStorage.removeItem("ftballAuthToken");
-  localStorage.removeItem("ftballAuthUser");
-  localStorage.removeItem("ftballGuestProfile");
-  renderAuthWidget();
-  renderStatsView();
-  showView("home");
-  window.google?.accounts?.id?.disableAutoSelect?.();
+  clearLocalAuthSession({ returnHome: true });
 
   if (logoutToken) {
     fetch("/api/auth/logout", {
@@ -1201,8 +1230,28 @@ async function loadAccountStats() {
     writeAccountCache(state.auth.user, mergedStats);
     renderStatsView(mergedStats);
   } catch (error) {
+    if (error.status === 401) {
+      clearLocalAuthSession();
+      $("statsStatusText").textContent = "La sessione era scaduta. Accedi nuovamente con Google.";
+      return;
+    }
     renderStatsView(cachedStats);
     $("statsStatusText").textContent = error.message;
+  }
+}
+
+async function validateRestoredSession() {
+  if (!state.auth.token || !state.auth.user) return;
+  try {
+    const data = await authedApi("/api/stats");
+    const cachedAccount = readAccountCache(state.auth.user.id);
+    state.auth.user = preferredAccountUser(data.user || state.auth.user, cachedAccount?.user);
+    state.auth.stats = mergeAccountStats(cachedAccount?.stats, data.stats);
+    localStorage.setItem("ftballAuthUser", JSON.stringify(state.auth.user));
+    writeAccountCache();
+    renderAuthWidget();
+  } catch (error) {
+    if (error.status === 401) clearLocalAuthSession();
   }
 }
 
@@ -2861,6 +2910,7 @@ window.addEventListener("beforeunload", () => {
 
 renderAuthWidget();
 initGoogleLogin();
+validateRestoredSession();
 applyDifficultyDefaults();
 
 const joinCodeFromUrl = new URLSearchParams(window.location.search).get("join");
