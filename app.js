@@ -248,6 +248,9 @@ const state = {
   pendingTactic: null,
   pendingTacticalPlan: null,
   pendingCaptainId: null,
+  statsModalOpen: false,
+  profileModalOpen: false,
+  profileDraftAvatar: null,
   auth: {
     token: restoredAuthToken,
     user: restoredAuthUser,
@@ -277,16 +280,17 @@ const views = {
   game: $("gameView"),
   squad: $("squadView"),
   results: $("resultsView"),
-  live: $("liveSimView"),
-  stats: $("statsView")
+  live: $("liveSimView")
 };
 
 function showView(name) {
   if (name === "multi") applyProfileDefaultsToForms();
+  if (name !== "home") closeProfileModal();
   Object.values(views).forEach((view) => view.classList.remove("active"));
   views[name].classList.add("active");
   state.view = name;
   document.body.dataset.view = name;
+  renderProfileEditAvailability();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -973,19 +977,29 @@ function renderAuthWidget() {
   const googleEnabled = Boolean(state.auth.googleClientId);
   $("authNameLabel").textContent = logged ? name : "Non connesso";
   $("authAvatarImg").src = logged ? avatarPath(currentAvatar()) : "/ftball-logo.svg?v=3";
+  $("editProfileBtn").classList.toggle("is-hidden", !logged);
   $("googleSignInBox").classList.toggle("is-hidden", logged || !googleEnabled);
   $("googleFallbackBtn").classList.toggle("is-hidden", logged || googleEnabled);
   $("logoutBtn").classList.toggle("is-hidden", !logged);
   if (logged) {
     $("hostNameInput").value = name;
     $("joinNameInput").value = name;
-    $("displayNameInput").value = name;
+    if (!state.profileModalOpen) $("displayNameInput").value = name;
   } else {
     $("hostNameInput").value = "Host";
     $("joinNameInput").value = "Manager";
-    $("displayNameInput").value = "Manager";
+    if (!state.profileModalOpen) $("displayNameInput").value = "Manager";
   }
+  renderProfileEditAvailability();
   renderAvatarPicker();
+}
+
+function renderProfileEditAvailability() {
+  const button = $("editProfileBtn");
+  if (!button) return;
+  const available = state.view === "home" && Boolean(state.auth.token && state.auth.user);
+  button.disabled = !available;
+  button.title = available ? "Modifica nome e immagine" : "Il profilo si modifica solo dalla home, fuori dalla partita";
 }
 
 function applyProfileDefaultsToForms() {
@@ -998,20 +1012,63 @@ function applyProfileDefaultsToForms() {
 function renderAvatarPicker() {
   const picker = $("avatarPicker");
   if (!picker) return;
-  const selected = currentAvatar();
+  const selected = state.profileDraftAvatar || currentAvatar();
   picker.innerHTML = profileAvatars.map((avatar, index) => `
-    <button class="avatar-choice ${avatar === selected ? "selected" : ""}" type="button" data-avatar="${avatar}" aria-label="Avatar ${index + 1}">
+    <button class="avatar-choice ${avatar === selected ? "selected" : ""}" type="button" data-avatar="${avatar}" aria-label="Avatar ${index + 1}" ${state.profileModalOpen ? "" : "disabled"}>
       <img src="${avatarPath(avatar)}" alt="" />
     </button>
   `).join("");
   picker.querySelectorAll("[data-avatar]").forEach((button) => {
     button.addEventListener("click", () => {
-      const name = $("displayNameInput").value || displayName();
-      state.auth.user = { ...(state.auth.user || {}), publicName: name, avatar: button.dataset.avatar };
-      if (!state.auth.token) localStorage.setItem("ftballGuestProfile", JSON.stringify(state.auth.user));
-      renderAuthWidget();
+      if (!state.profileModalOpen || state.view !== "home") return;
+      state.profileDraftAvatar = button.dataset.avatar;
+      renderAvatarPicker();
     });
   });
+}
+
+function syncModalPageState() {
+  document.body.classList.toggle("modal-open", state.statsModalOpen || state.profileModalOpen);
+}
+
+function openStatsModal() {
+  closeProfileModal();
+  state.statsModalOpen = true;
+  $("statsModal").classList.remove("is-hidden");
+  $("statsModal").setAttribute("aria-hidden", "false");
+  syncModalPageState();
+  loadAccountStats();
+  $("closeStatsModalBtn").focus();
+}
+
+function closeStatsModal() {
+  state.statsModalOpen = false;
+  $("statsModal").classList.add("is-hidden");
+  $("statsModal").setAttribute("aria-hidden", "true");
+  syncModalPageState();
+}
+
+function openProfileModal() {
+  if (state.view !== "home" || !state.auth.token || !state.auth.user) return;
+  closeStatsModal();
+  state.profileModalOpen = true;
+  state.profileDraftAvatar = currentAvatar();
+  $("displayNameInput").value = displayName();
+  $("profileSaveStatus").textContent = "";
+  $("profileModal").classList.remove("is-hidden");
+  $("profileModal").setAttribute("aria-hidden", "false");
+  renderAvatarPicker();
+  syncModalPageState();
+  $("displayNameInput").focus();
+  $("displayNameInput").select();
+}
+
+function closeProfileModal() {
+  state.profileModalOpen = false;
+  state.profileDraftAvatar = null;
+  $("profileModal")?.classList.add("is-hidden");
+  $("profileModal")?.setAttribute("aria-hidden", "true");
+  syncModalPageState();
 }
 
 async function initGoogleLogin() {
@@ -1235,12 +1292,10 @@ function renderStatsView(stats = emptyAccountStats()) {
   const safeStats = normalizeAccountStats(stats);
   if (state.auth.token) state.auth.stats = safeStats;
   const logged = Boolean(state.auth.token && state.auth.user);
-  $("statsView").classList.toggle("logged-out", !logged);
+  $("statsModal").classList.toggle("logged-out", !logged);
   $("statsStatusText").textContent = logged
     ? `Profilo ${state.auth.user.publicName}. Salviamo solo un id hashato e questo nome pubblico.`
     : "Accedi con Google per salvare progressi single player e online.";
-  $("displayNameInput").value = displayName();
-  renderAvatarPicker();
   $("accountStatsSummary").innerHTML = statCard("Single player", safeStats.single) + statCard("Online", safeStats.online);
   $("accountRecentMatches").innerHTML = safeStats.recent.length
     ? safeStats.recent.map((match) => `
@@ -1254,13 +1309,16 @@ function renderStatsView(stats = emptyAccountStats()) {
 }
 
 async function saveProfile() {
+  if (!state.profileModalOpen || state.view !== "home") return;
   const cleanName = ($("displayNameInput").value || "Manager").replace(/[<>]/g, "").trim().slice(0, 18) || "Manager";
-  const avatar = currentAvatar();
+  const avatar = state.profileDraftAvatar || currentAvatar();
   $("profileSaveStatus").textContent = "Salvataggio profilo...";
   if (!state.auth.token) {
     state.auth.user = { publicName: cleanName, avatar };
     localStorage.setItem("ftballGuestProfile", JSON.stringify(state.auth.user));
     renderAuthWidget();
+    state.profileDraftAvatar = currentAvatar();
+    renderAvatarPicker();
     $("profileSaveStatus").textContent = "Profilo guest aggiornato su questo browser.";
     return;
   }
@@ -1271,6 +1329,8 @@ async function saveProfile() {
     writeAccountCache(data.user, data.stats);
     renderAuthWidget();
     renderStatsView(data.stats);
+    state.profileDraftAvatar = currentAvatar();
+    renderAvatarPicker();
     $("profileSaveStatus").textContent = "Profilo salvato.";
   } catch (error) {
     $("profileSaveStatus").textContent = error.message;
@@ -2993,6 +3053,16 @@ function updateSetupSummary() {
   $("setupSummary").textContent = `Budget ${credits} cr - ${rounds} giocatori in asta - ${rivals} IA asta - campionato a 20 squadre`;
 }
 
+function previewSetupSummary() {
+  const values = [$("creditsInput").value, $("auctionPlayersInput").value, $("aiPlayersInput").value];
+  if (values.some((value) => value.trim() === "" || !Number.isFinite(Number(value)))) {
+    $("setupSummary").textContent = "Completa tutti i valori numerici per avviare la partita";
+    return;
+  }
+  const [credits, rounds, rivals] = values.map(Number);
+  $("setupSummary").textContent = `Budget ${credits} cr - ${rounds} giocatori in asta - ${rivals} IA asta - campionato a 20 squadre`;
+}
+
 $("singleModeBtn").addEventListener("click", () => {
   applyProfileDefaultsToForms();
   showView("setup");
@@ -3002,10 +3072,14 @@ $("multiModeBtn").addEventListener("click", () => {
   showView("multi");
 });
 $("statsMenuBtn").addEventListener("click", () => {
-  showView("stats");
-  loadAccountStats();
+  openStatsModal();
 });
 $("logoutBtn").addEventListener("click", logoutAccount);
+$("editProfileBtn").addEventListener("click", openProfileModal);
+$("closeStatsModalBtn").addEventListener("click", closeStatsModal);
+$("closeProfileModalBtn").addEventListener("click", closeProfileModal);
+document.querySelector('[data-close-modal="stats"]').addEventListener("click", closeStatsModal);
+document.querySelector('[data-close-modal="profile"]').addEventListener("click", closeProfileModal);
 $("saveProfileBtn").addEventListener("click", saveProfile);
 $("createLobbyBtn").addEventListener("click", createMultiplayerLobby);
 $("joinLobbyBtn").addEventListener("click", joinMultiplayerLobby);
@@ -3031,9 +3105,10 @@ $("startGameBtn").addEventListener("click", startSinglePlayer);
 $("resetBtn").addEventListener("click", resetGame);
 $("playAgainBtn").addEventListener("click", () => showView("setup"));
 $("difficultySelect").addEventListener("change", applyDifficultyDefaults);
-$("creditsInput").addEventListener("input", updateSetupSummary);
-$("auctionPlayersInput").addEventListener("input", updateSetupSummary);
-$("aiPlayersInput").addEventListener("input", updateSetupSummary);
+[$("creditsInput"), $("auctionPlayersInput"), $("aiPlayersInput")].forEach((input) => {
+  input.addEventListener("input", previewSetupSummary);
+  input.addEventListener("change", updateSetupSummary);
+});
 [$("mentalitySelect"), $("buildupSelect"), $("pressingSelect"), $("defensiveLineSelect")].forEach((control) => control.addEventListener("change", updateAdvancedTactics));
 $("captainSelect").addEventListener("change", updateCaptain);
 $("autoFillBtn").addEventListener("click", () => {
@@ -3061,6 +3136,12 @@ window.addEventListener("beforeunload", () => {
     return;
   }
   fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (state.profileModalOpen) closeProfileModal();
+  else if (state.statsModalOpen) closeStatsModal();
 });
 
 renderAuthWidget();
