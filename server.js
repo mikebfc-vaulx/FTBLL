@@ -9,6 +9,7 @@ const ROOT = __dirname;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const STATS_FILE = process.env.STATS_FILE || path.join(ROOT, "stats-store.json");
 const GOOGLE_CLIENT_ID_VALID = /^\d+-[a-z0-9-]+\.apps\.googleusercontent\.com$/i.test(GOOGLE_CLIENT_ID);
+const NODE_ENV = process.env.NODE_ENV || "development";
 const AVATARS = ["avatar-1.svg", "avatar-2.svg", "avatar-3.svg", "avatar-4.svg", "avatar-5.svg", "avatar-6.svg"];
 const LOBBY_TTL_MS = Number(process.env.LOBBY_TTL_MS || 1000 * 60 * 60 * 3);
 const FINISHED_LOBBY_TTL_MS = Number(process.env.FINISHED_LOBBY_TTL_MS || 1000 * 60 * 2);
@@ -16,6 +17,35 @@ const CLEANUP_INTERVAL_MS = Number(process.env.CLEANUP_INTERVAL_MS || 1000 * 60 
 const AUCTION_COUNTDOWN_MS = Number(process.env.AUCTION_COUNTDOWN_MS || 10000);
 const AUCTION_DURATION_MS = Number(process.env.AUCTION_DURATION_MS || 10000);
 const AUCTION_EXTEND_MS = Number(process.env.AUCTION_EXTEND_MS || 5000);
+const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 12);
+const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 32 * 1024);
+const MAX_ACTIVE_LOBBIES = Number(process.env.MAX_ACTIVE_LOBBIES || 250);
+const MAX_HUMAN_PLAYERS = Number(process.env.MAX_HUMAN_PLAYERS || 20);
+const MAX_LOBBY_MANAGERS = Number(process.env.MAX_LOBBY_MANAGERS || 20);
+const MAX_RATE_LIMIT_BUCKETS = Number(process.env.MAX_RATE_LIMIT_BUCKETS || 10000);
+const STATIC_FILES = new Set([
+  "index.html",
+  "styles.css",
+  "modern-ui.css",
+  "players.js",
+  "i18n.js",
+  "app.js",
+  "futbidder-logo.svg",
+  "ftball-logo.svg"
+]);
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self' https://accounts.google.com/gsi/client",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+  "img-src 'self' data: https://lh3.googleusercontent.com",
+  "connect-src 'self' https://accounts.google.com",
+  "frame-src https://accounts.google.com",
+  "font-src 'self'"
+].join("; ");
 const botDifficultyRanges = {
   easy: [68, 76],
   normal: [72, 82],
@@ -128,6 +158,7 @@ const generatedNames = {
 
 const lobbies = new Map();
 const sessions = new Map();
+const rateLimitBuckets = new Map();
 const PLAYER_INACTIVE_MS = Number(process.env.PLAYER_INACTIVE_MS || 1000 * 60 * 2);
 const colors = ["#1e8e4d", "#2f80ed", "#d64545", "#f2a900", "#9b51e0", "#00a6a6", "#f26b38", "#5b6ee1"];
 const botTeamNames = [
@@ -175,24 +206,107 @@ function cleanupLobbies() {
   }
 }
 
-function json(res, status, payload) {
-  res.writeHead(status, { "Content-Type": "application/json" });
+function cleanupSessions() {
+  const cutoff = now() - SESSION_TTL_MS;
+  for (const [token, session] of sessions.entries()) {
+    if ((session.lastSeen || session.createdAt || 0) < cutoff) sessions.delete(token);
+  }
+}
+
+function cleanupRateLimits() {
+  const timestamp = now();
+  for (const [key, bucket] of rateLimitBuckets.entries()) {
+    if (bucket.resetAt <= timestamp) rateLimitBuckets.delete(key);
+  }
+}
+
+function requestIp(req) {
+  const forwarded = String(req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return (forwarded || req.socket.remoteAddress || "unknown").slice(0, 80);
+}
+
+function consumeRateLimit(req, scope, limit, windowMs) {
+  const key = `${scope}:${requestIp(req)}`;
+  const timestamp = now();
+  let bucket = rateLimitBuckets.get(key);
+  if (!bucket || bucket.resetAt <= timestamp) {
+    if (!rateLimitBuckets.has(key) && rateLimitBuckets.size >= MAX_RATE_LIMIT_BUCKETS) {
+      rateLimitBuckets.delete(rateLimitBuckets.keys().next().value);
+    }
+    bucket = { count: 0, resetAt: timestamp + windowMs };
+    rateLimitBuckets.set(key, bucket);
+  }
+  bucket.count += 1;
+  return bucket.count <= limit ? null : Math.max(1, Math.ceil((bucket.resetAt - timestamp) / 1000));
+}
+
+function applySecurityHeaders(req, res) {
+  res.setHeader("Content-Security-Policy", CONTENT_SECURITY_POLICY);
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  res.setHeader("X-XSS-Protection", "0");
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  if (NODE_ENV === "production" || forwardedProto === "https" || req.socket.encrypted) {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000");
+  }
+}
+
+function json(res, status, payload, headers = {}) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers });
   res.end(JSON.stringify(payload));
 }
 
 function readBody(req) {
-  return new Promise((resolve) => {
-    let body = "";
+  return new Promise((resolve, reject) => {
+    const declaredLength = Number(req.headers["content-length"] || 0);
+    if (declaredLength > MAX_BODY_BYTES) {
+      const error = new Error("Richiesta troppo grande");
+      error.status = 413;
+      req.resume();
+      reject(error);
+      return;
+    }
+    const contentType = String(req.headers["content-type"] || "").toLowerCase();
+    if (!contentType.startsWith("application/json")) {
+      const error = new Error("Content-Type non supportato");
+      error.status = 415;
+      req.resume();
+      reject(error);
+      return;
+    }
+    const chunks = [];
+    let bytes = 0;
+    let tooLarge = false;
     req.on("data", (chunk) => {
-      body += chunk;
+      bytes += chunk.length;
+      if (bytes > MAX_BODY_BYTES) {
+        tooLarge = true;
+        return;
+      }
+      chunks.push(chunk);
     });
     req.on("end", () => {
+      if (tooLarge) {
+        const error = new Error("Richiesta troppo grande");
+        error.status = 413;
+        reject(error);
+        return;
+      }
+      const body = Buffer.concat(chunks).toString("utf8");
       try {
         resolve(body ? JSON.parse(body) : {});
       } catch {
-        resolve({});
+        const error = new Error("JSON non valido");
+        error.status = 400;
+        reject(error);
       }
     });
+    req.on("error", reject);
   });
 }
 
@@ -205,7 +319,11 @@ function publicNameFromHash(hash) {
 }
 
 function sanitizeDisplayName(name, fallback = "Manager") {
-  return String(name || fallback).replace(/[<>]/g, "").trim().slice(0, 18) || fallback;
+  return String(name || fallback).replace(/[<>&\u0000-\u001f\u007f]/g, "").trim().slice(0, 18) || fallback;
+}
+
+function sanitizePlainText(value, maxLength = 80) {
+  return String(value || "").replace(/[<>&\u0000-\u001f\u007f]/g, "").trim().slice(0, maxLength);
 }
 
 function sanitizeAvatar(avatar) {
@@ -214,15 +332,23 @@ function sanitizeAvatar(avatar) {
 }
 
 function createSession(user) {
-  const token = crypto.randomBytes(24).toString("hex");
-  sessions.set(token, { ...user, avatar: sanitizeAvatar(user.avatar), createdAt: now() });
+  cleanupSessions();
+  const token = crypto.randomBytes(32).toString("base64url");
+  sessions.set(token, { ...user, avatar: sanitizeAvatar(user.avatar), createdAt: now(), lastSeen: now() });
   return token;
 }
 
 function userFromRequest(req) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  return token ? sessions.get(token) || null : null;
+  const session = token ? sessions.get(token) || null : null;
+  if (!session) return null;
+  if (now() - (session.lastSeen || session.createdAt || 0) > SESSION_TTL_MS) {
+    sessions.delete(token);
+    return null;
+  }
+  session.lastSeen = now();
+  return session;
 }
 
 function defaultUserStats() {
@@ -239,10 +365,15 @@ function normalizeStoredUserStats(stats = {}) {
   return {
     ...defaults,
     ...stats,
-    profile: { ...defaults.profile, ...(stats.profile || {}) },
+    profile: {
+      displayName: sanitizeDisplayName(stats.profile?.displayName, defaults.profile.displayName),
+      avatar: sanitizeAvatar(stats.profile?.avatar)
+    },
     single: { ...defaults.single, ...(stats.single || {}) },
     online: { ...defaults.online, ...(stats.online || {}) },
-    recent: Array.isArray(stats.recent) ? stats.recent : []
+    recent: Array.isArray(stats.recent)
+      ? stats.recent.slice(0, 12).map((match) => ({ ...match, champion: sanitizePlainText(match?.champion, 28) }))
+      : []
   };
 }
 
@@ -259,7 +390,7 @@ function writeStatsStore(store) {
   const directory = path.dirname(STATS_FILE);
   const temporaryFile = `${STATS_FILE}.${process.pid}.tmp`;
   fs.mkdirSync(directory, { recursive: true });
-  fs.writeFileSync(temporaryFile, JSON.stringify(store, null, 2));
+  fs.writeFileSync(temporaryFile, JSON.stringify(store, null, 2), { mode: 0o600 });
   fs.renameSync(temporaryFile, STATS_FILE);
 }
 
@@ -319,7 +450,7 @@ function recordUserStats(user, body) {
       points: clamp(body.points, 0, 200),
       gf: clamp(body.gf, 0, 200),
       ga: clamp(body.ga, 0, 200),
-      champion: String(body.champion || "").slice(0, 28)
+      champion: sanitizePlainText(body.champion, 28)
     },
     ...userStats.recent
   ].slice(0, 12);
@@ -342,11 +473,18 @@ function decodeJwtPayload(token) {
 async function verifyGoogleCredential(credential) {
   if (!GOOGLE_CLIENT_ID) throw new Error("Google login non configurato");
   if (!GOOGLE_CLIENT_ID_VALID) throw new Error("GOOGLE_CLIENT_ID non valido: usa un client OAuth di tipo Applicazione web");
-  const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+  const token = String(credential || "");
+  if (!token || token.length > 8192 || token.split(".").length !== 3) throw new Error("Token Google non valido");
+  const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`, {
+    signal: AbortSignal.timeout(7000),
+    headers: { Accept: "application/json" }
+  });
   if (!response.ok) throw new Error("Token Google non valido");
   const verified = await response.json();
   if (verified.aud !== GOOGLE_CLIENT_ID) throw new Error("Client Google non valido");
-  const payload = decodeJwtPayload(credential) || verified;
+  if (!["accounts.google.com", "https://accounts.google.com"].includes(verified.iss)) throw new Error("Emittente Google non valida");
+  if (!Number.isFinite(Number(verified.exp)) || Number(verified.exp) * 1000 <= now()) throw new Error("Token Google scaduto");
+  const payload = decodeJwtPayload(token) || verified;
   const sub = verified.sub || payload.sub;
   if (!sub) throw new Error("Identificativo Google mancante");
   const id = hashUserId(sub);
@@ -493,9 +631,10 @@ function buildBalancedAuctionPool(sourcePlayers, rounds, formations = []) {
 }
 
 function code() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let value = "";
   do {
-    value = Math.random().toString(36).slice(2, 8).toUpperCase();
+    value = Array.from({ length: 6 }, () => alphabet[crypto.randomInt(0, alphabet.length)]).join("");
   } while (lobbies.has(value));
   return value;
 }
@@ -520,7 +659,8 @@ function uniqueGuestManagerName(lobby) {
 
 function newPlayer(name, credits, formation, isHost = false, color = colors[0], avatar = AVATARS[0]) {
   return {
-    id: Math.random().toString(36).slice(2, 12),
+    id: crypto.randomBytes(24).toString("base64url"),
+    publicId: `manager-${crypto.randomBytes(8).toString("hex")}`,
     name: sanitizeDisplayName(name),
     avatar: sanitizeAvatar(avatar),
     credits,
@@ -547,8 +687,54 @@ function emptyPlayerStats() {
   return { goals: 0, assists: 0, conceded: 0 };
 }
 
-function publicLobby(lobby, playerId) {
-  if (lobby.status !== "results") touchLobby(lobby);
+function visibleManagerId(lobby, managerId, viewerId) {
+  if (!managerId) return null;
+  const manager = lobby.managers.find((item) => item.id === managerId);
+  if (!manager) return null;
+  return manager.id === viewerId ? manager.id : manager.publicId;
+}
+
+function publicManager(manager, viewerId) {
+  return {
+    id: manager.id === viewerId ? manager.id : manager.publicId,
+    name: manager.name,
+    avatar: manager.avatar,
+    credits: manager.credits,
+    squad: manager.squad,
+    lineup: manager.lineup,
+    formation: manager.formation,
+    tactic: manager.tactic,
+    tacticalPlan: manager.tacticalPlan,
+    captainId: manager.captainId,
+    ready: manager.ready,
+    isHost: manager.isHost,
+    isBot: manager.isBot,
+    color: manager.color,
+    stats: manager.stats,
+    isUser: manager.id === viewerId,
+    online: manager.isBot || now() - (manager.lastSeen || 0) < PLAYER_INACTIVE_MS
+  };
+}
+
+function publicResults(lobby, viewerId) {
+  if (!lobby.results) return null;
+  return {
+    ...lobby.results,
+    standings: (lobby.results.standings || []).map((manager) => publicManager(manager, viewerId)),
+    rounds: (lobby.results.rounds || []).map((round) => ({
+      ...round,
+      standings: (round.standings || []).map((manager) => ({
+        ...manager,
+        id: visibleManagerId(lobby, manager.id, viewerId)
+      }))
+    }))
+  };
+}
+
+function publicLobby(lobby, requestedPlayerId) {
+  const viewer = lobby.managers.find((manager) => manager.id === requestedPlayerId && !manager.isBot) || null;
+  const playerId = viewer?.id || null;
+  if (viewer && lobby.status !== "results") touchLobby(lobby);
   markSeen(lobby, playerId);
   updateAuction(lobby);
   if (lobby.status === "results" && playerId) {
@@ -561,16 +747,15 @@ function publicLobby(lobby, playerId) {
     status: lobby.status,
     settings: lobby.settings,
     playerId,
-    hostId: lobby.hostId,
-    auction: lobby.auction,
+    hostId: visibleManagerId(lobby, lobby.hostId, playerId),
+    auction: {
+      ...lobby.auction,
+      leaderId: visibleManagerId(lobby, lobby.auction.leaderId, playerId)
+    },
     currentPlayer: lobby.auction.index < lobby.pool.length ? lobby.pool[lobby.auction.index] : null,
-    managers: lobby.managers.map((manager) => ({
-      ...manager,
-      isUser: manager.id === playerId,
-      online: manager.isBot || now() - (manager.lastSeen || 0) < PLAYER_INACTIVE_MS
-    })),
+    managers: lobby.managers.map((manager) => publicManager(manager, playerId)),
     log: lobby.log.slice(-30).reverse(),
-    results: lobby.results
+    results: publicResults(lobby, playerId)
   };
   if (lobby.status === "results") {
     const humanIds = lobby.managers.filter((manager) => !manager.isBot).map((manager) => manager.id);
@@ -686,6 +871,20 @@ function getLineupSlots(formation) {
   });
 }
 
+function sanitizeLineup(manager, lineup) {
+  if (!lineup || typeof lineup !== "object" || Array.isArray(lineup)) return manager.lineup || {};
+  const validSlots = new Set(getLineupSlots(manager.formation).map((slot) => slot.id));
+  const validPlayers = new Set(manager.squad.flatMap((player) => [player.uid, player.name]).filter(Boolean));
+  const usedPlayers = new Set();
+  const sanitized = Object.create(null);
+  Object.entries(lineup).slice(0, 11).forEach(([slotId, playerId]) => {
+    if (!validSlots.has(slotId) || !validPlayers.has(playerId) || usedPlayers.has(playerId)) return;
+    sanitized[slotId] = playerId;
+    usedPlayers.add(playerId);
+  });
+  return sanitized;
+}
+
 function fillVacancies(lobby, playerId) {
   const manager = lobby.managers.find((item) => item.id === playerId);
   if (!manager) return 0;
@@ -747,9 +946,9 @@ function markReady(lobby, playerId, tactic, tacticalPlan, captainId, lineup = nu
   const manager = lobby.managers.find((item) => item.id === playerId);
   if (!manager) return;
   fillVacancies(lobby, playerId);
-  manager.tactic = tactic || "balanced";
+  manager.tactic = tacticProfiles[tactic] ? tactic : "balanced";
   manager.tacticalPlan = normalizeTacticalPlan(tacticalPlan, manager.tactic);
-  manager.lineup = lineup && typeof lineup === "object" ? lineup : manager.lineup || {};
+  manager.lineup = sanitizeLineup(manager, lineup);
   const starters = buildLineupSlots(manager, manager.formation || lobby.settings.formation).filter((slot) => slot.player);
   manager.captainId = starters.some((slot) => (slot.player.uid || slot.player.name) === captainId)
     ? captainId
@@ -1071,11 +1270,13 @@ function updateStats(manager, gf, ga) {
 }
 
 async function handleApi(req, res, parts, url) {
-  const body = await readBody(req);
+  const body = ["POST", "PUT", "PATCH"].includes(req.method) ? await readBody(req) : {};
   if (req.method === "GET" && parts[1] === "config") {
     const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
     const protocol = forwardedProto || (req.socket.encrypted ? "https" : "http");
-    const appOrigin = `${protocol}://${req.headers.host}`;
+    const forwardedHost = String(req.headers["x-forwarded-host"] || req.headers.host || "").split(",")[0].trim();
+    const safeHost = /^[a-z0-9.-]+(?::\d{1,5})?$/i.test(forwardedHost) ? forwardedHost : "localhost";
+    const appOrigin = `${protocol === "https" ? "https" : "http"}://${safeHost}`;
     return json(res, 200, {
       googleClientId: GOOGLE_CLIENT_ID,
       googleLoginEnabled: GOOGLE_CLIENT_ID_VALID,
@@ -1120,11 +1321,13 @@ async function handleApi(req, res, parts, url) {
     }
   }
   if (req.method === "POST" && parts[1] === "lobbies" && parts.length === 2) {
+    cleanupLobbies();
+    if (lobbies.size >= MAX_ACTIVE_LOBBIES) return json(res, 503, { error: "Troppe lobby attive. Riprova tra poco." });
     const settings = {
       credits: clamp(body.credits || 650, 250, 1200),
       rounds: clamp(body.rounds || 24, 12, players.length),
       formation: formationNeeds[body.formation] ? body.formation : "4-3-3",
-      botCount: clamp(body.botCount || 0, 0, 20),
+      botCount: clamp(body.botCount || 0, 0, MAX_LOBBY_MANAGERS - 1),
       botDifficulty: botDifficultyRanges[body.botDifficulty] ? body.botDifficulty : "normal"
     };
     const lobbyCode = code();
@@ -1155,6 +1358,8 @@ async function handleApi(req, res, parts, url) {
 
   if (req.method === "POST" && parts[3] === "join") {
     if (lobby.status !== "lobby") return json(res, 400, { error: "Asta gia iniziata" });
+    const humanCount = lobby.managers.filter((manager) => !manager.isBot).length;
+    if (humanCount >= MAX_HUMAN_PLAYERS || humanCount + (lobby.settings.botCount || 0) >= MAX_LOBBY_MANAGERS) return json(res, 409, { error: "Lobby piena" });
     const managerFormation = formationNeeds[body.formation] ? body.formation : lobby.settings.formation;
     const requestedName = String(body.name || "").trim();
     const managerName = requestedName ? sanitizeDisplayName(requestedName) : uniqueGuestManagerName(lobby);
@@ -1166,6 +1371,8 @@ async function handleApi(req, res, parts, url) {
 
   if (req.method === "POST" && parts[3] === "leave") {
     const leavingId = body.playerId;
+    const leavingManager = lobby.managers.find((manager) => manager.id === leavingId && !manager.isBot);
+    if (!leavingManager) return json(res, 403, { error: "Manager non autorizzato" });
     if (lobby.status === "lobby") {
       lobby.managers = lobby.managers.filter((manager) => manager.id !== leavingId || manager.isHost);
       if (lobby.hostId === leavingId) {
@@ -1178,10 +1385,15 @@ async function handleApi(req, res, parts, url) {
   }
 
   if (req.method === "GET" && parts.length === 3) {
-    return json(res, 200, publicLobby(lobby, url.searchParams.get("playerId")));
+    return json(res, 200, publicLobby(lobby, String(req.headers["x-futbidder-player"] || "")));
   }
 
   const playerId = body.playerId;
+  const memberActions = new Set(["start", "settings", "profile", "lobby-ready", "bid", "fill", "ready", "lineup", "simulate", "skip"]);
+  const actingManager = lobby.managers.find((manager) => manager.id === playerId && !manager.isBot);
+  if (req.method === "POST" && memberActions.has(parts[3]) && !actingManager) {
+    return json(res, 403, { error: "Manager non autorizzato" });
+  }
   if (req.method === "POST" && parts[3] === "start") {
     if (playerId !== lobby.hostId) return json(res, 403, { error: "Solo host" });
     const humanManagers = lobby.managers.filter((manager) => !manager.isBot);
@@ -1207,7 +1419,7 @@ async function handleApi(req, res, parts, url) {
     if (playerId !== lobby.hostId || lobby.status !== "lobby") return json(res, 403, { error: "Solo host in lobby" });
     lobby.settings.credits = clamp(body.credits, 250, 1200);
     lobby.settings.rounds = clamp(body.rounds, 12, players.length);
-    lobby.settings.botCount = clamp(body.botCount || 0, 0, Math.max(0, 20 - lobby.managers.filter((manager) => !manager.isBot).length));
+    lobby.settings.botCount = clamp(body.botCount || 0, 0, Math.max(0, MAX_LOBBY_MANAGERS - lobby.managers.filter((manager) => !manager.isBot).length));
     lobby.settings.botDifficulty = botDifficultyRanges[body.botDifficulty] ? body.botDifficulty : lobby.settings.botDifficulty || "normal";
     lobby.settings.formation = formationNeeds[body.formation] ? body.formation : lobby.settings.formation;
     lobby.pool = buildBalancedAuctionPool(players, lobby.settings.rounds, lobby.managers.filter((manager) => !manager.isBot).map((manager) => manager.formation || lobby.settings.formation));
@@ -1258,10 +1470,10 @@ async function handleApi(req, res, parts, url) {
     if (lobby.status !== "squad") return json(res, 400, { error: "Asta non ancora terminata" });
     const manager = lobby.managers.find((item) => item.id === playerId);
     if (!manager) return json(res, 400, { error: "Manager non valido" });
-    manager.lineup = body.lineup && typeof body.lineup === "object" ? body.lineup : manager.lineup || {};
-    if (body.tactic) manager.tactic = body.tactic;
+    manager.lineup = sanitizeLineup(manager, body.lineup);
+    if (tacticProfiles[body.tactic]) manager.tactic = body.tactic;
     manager.tacticalPlan = normalizeTacticalPlan(body.tacticalPlan, manager.tactic);
-    if (body.captainId) manager.captainId = body.captainId;
+    if (body.captainId && manager.squad.some((player) => player.uid === body.captainId || player.name === body.captainId)) manager.captainId = body.captainId;
     manager.ready = false;
     return json(res, 200, publicLobby(lobby, playerId));
   }
@@ -1273,6 +1485,7 @@ async function handleApi(req, res, parts, url) {
     return json(res, 200, publicLobby(lobby, playerId));
   }
   if (req.method === "POST" && parts[3] === "skip") {
+    if (lobby.status !== "results" || !lobby.results) return json(res, 400, { error: "Simulazione non disponibile" });
     if (!lobby.skipVotes.includes(playerId)) lobby.skipVotes.push(playerId);
     const required = Math.floor(lobby.managers.filter((manager) => !manager.isBot).length / 2) + 1;
     if (lobby.results && lobby.skipVotes.length >= required) {
@@ -1284,19 +1497,29 @@ async function handleApi(req, res, parts, url) {
   return json(res, 404, { error: "Endpoint non trovato" });
 }
 
-function serveStatic(req, res, pathname) {
-  const safePath = pathname === "/" ? "/index.html" : pathname;
-  const filePath = path.join(ROOT, safePath);
-  if (!filePath.startsWith(ROOT)) {
-    res.writeHead(403);
-    res.end();
-    return;
+function resolveStaticFile(pathname) {
+  let decodedPath;
+  try {
+    decodedPath = decodeURIComponent(pathname);
+  } catch {
+    return null;
   }
+  const relativePath = (decodedPath === "/" ? "index.html" : decodedPath).replace(/^\/+/, "");
+  const allowedAvatar = /^avatars\/avatar-[1-6]\.svg$/.test(relativePath);
+  if (!STATIC_FILES.has(relativePath) && !allowedAvatar) return null;
+  const filePath = path.resolve(ROOT, relativePath);
+  const relativeToRoot = path.relative(ROOT, filePath);
+  if (!relativeToRoot || relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) return relativePath === "index.html" ? filePath : null;
+  return filePath;
+}
+
+function serveStatic(req, res, pathname) {
+  if (!["GET", "HEAD"].includes(req.method)) return json(res, 405, { error: "Metodo non consentito" }, { Allow: "GET, HEAD" });
+  const filePath = resolveStaticFile(pathname);
+  if (!filePath) return json(res, 404, { error: "Risorsa non trovata" });
   fs.readFile(filePath, (error, content) => {
     if (error) {
-      res.writeHead(404);
-      res.end("Not found");
-      return;
+      return json(res, 404, { error: "Risorsa non trovata" });
     }
     const ext = path.extname(filePath);
     const mimeTypes = {
@@ -1309,24 +1532,56 @@ function serveStatic(req, res, pathname) {
     const cacheControl = ext === ".html" ? "no-cache, no-store, must-revalidate" : "public, max-age=3600";
     res.writeHead(200, {
       "Content-Type": type,
-      "Cache-Control": cacheControl,
-      "Referrer-Policy": "no-referrer-when-downgrade",
-      "Cross-Origin-Opener-Policy": "same-origin-allow-popups"
+      "Cache-Control": cacheControl
     });
-    res.end(content);
+    res.end(req.method === "HEAD" ? undefined : content);
   });
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer({
+  requestTimeout: 15000,
+  headersTimeout: 10000,
+  keepAliveTimeout: 5000,
+  maxHeaderSize: 16 * 1024
+}, (req, res) => {
+  applySecurityHeaders(req, res);
   cleanupLobbies();
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  cleanupSessions();
+  cleanupRateLimits();
+  let url;
+  try {
+    url = new URL(req.url, "http://localhost");
+  } catch {
+    return json(res, 400, { error: "URL non valido" });
+  }
   const parts = url.pathname.split("/").filter(Boolean);
   if (parts[0] === "api") {
-    handleApi(req, res, parts, url);
+    const generalRetry = consumeRateLimit(req, "api", 1800, 60 * 1000);
+    const isGoogleLogin = req.method === "POST" && parts[1] === "auth" && parts[2] === "google";
+    const isLobbyEntry = req.method === "POST" && (parts[1] === "lobbies") && (parts.length === 2 || parts[3] === "join");
+    const isMutation = req.method !== "GET" && req.method !== "HEAD";
+    const sensitiveRetry = isGoogleLogin
+      ? consumeRateLimit(req, "google-login", 20, 10 * 60 * 1000)
+      : isLobbyEntry
+        ? consumeRateLimit(req, "lobby-entry", 60, 10 * 60 * 1000)
+        : isMutation
+          ? consumeRateLimit(req, "api-mutation", 600, 60 * 1000)
+          : null;
+    const retryAfter = generalRetry || sensitiveRetry;
+    if (retryAfter) return json(res, 429, { error: "Troppe richieste. Riprova tra poco." }, { "Retry-After": String(retryAfter) });
+    handleApi(req, res, parts, url).catch((error) => {
+      if (res.headersSent) return res.destroy();
+      const status = Number(error?.status) || 500;
+      const message = status >= 500 ? "Errore interno del server" : error.message;
+      json(res, status, { error: message });
+    });
     return;
   }
   serveStatic(req, res, url.pathname);
 });
+
+server.maxHeadersCount = 100;
+server.maxRequestsPerSocket = 100;
 
 setInterval(cleanupLobbies, CLEANUP_INTERVAL_MS).unref();
 
@@ -1338,6 +1593,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  server,
   repartoForRole,
   starBonusesByReparto,
   tacticalOptions,

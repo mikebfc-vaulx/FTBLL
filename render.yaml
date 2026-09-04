@@ -12,3 +12,9 @@ services:
         sync: false
       - key: LOBBY_TTL_MS
         value: "10800000"
+      - key: SESSION_TTL_MS
+        value: "43200000"
+      - key: MAX_ACTIVE_LOBBIES
+        value: "250"
+      - key: MAX_LOBBY_MANAGERS
+        value: "20"

@@ -912,10 +912,10 @@ function startSinglePlayer() {
   beginAuction();
 }
 
-async function api(path, payload = null) {
+async function api(path, payload = null, extraHeaders = {}) {
   const options = payload
-    ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
-    : { method: "GET" };
+    ? { method: "POST", headers: { "Content-Type": "application/json", ...extraHeaders }, body: JSON.stringify(payload) }
+    : { method: "GET", headers: { ...extraHeaders } };
   const response = await fetch(path, options);
   const data = await response.json();
   if (!response.ok) {
@@ -1118,11 +1118,13 @@ function closeLegalModal() {
 function showCookieBanner() {
   $("cookieBanner").classList.remove("is-hidden");
   $("cookieBanner").setAttribute("aria-hidden", "false");
+  document.body.classList.add("cookie-banner-visible");
 }
 
 function hideCookieBanner() {
   $("cookieBanner").classList.add("is-hidden");
   $("cookieBanner").setAttribute("aria-hidden", "true");
+  document.body.classList.remove("cookie-banner-visible");
 }
 
 function saveCookieConsent(functional) {
@@ -1200,7 +1202,8 @@ async function initGoogleLogin() {
       theme: "filled_black",
       size: "medium",
       text: "signin_with",
-      shape: "pill"
+      shape: "pill",
+      locale: window.futbidderLanguage === "en" ? "en" : "it"
     });
     renderAuthWidget();
   } catch {
@@ -1612,7 +1615,7 @@ async function pollMultiplayer() {
   if (!state.multiplayer.code || !state.multiplayer.playerId || state.multiplayer.bidPending) return;
   try {
     const requestStartedAt = Date.now();
-    const snapshot = await api(`/api/lobbies/${state.multiplayer.code}?playerId=${state.multiplayer.playerId}`);
+    const snapshot = await api(`/api/lobbies/${state.multiplayer.code}`, null, { "X-FutBidder-Player": state.multiplayer.playerId });
     snapshot.clientClockReference = (requestStartedAt + Date.now()) / 2;
     if (state.multiplayer.bidPending) return;
     applyMultiplayerSnapshot(snapshot);

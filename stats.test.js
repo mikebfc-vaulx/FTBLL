@@ -46,7 +46,7 @@ try {
     ga: 9,
     playerGoals: 12,
     playerAssists: 7,
-    champion: "Account B"
+    champion: "<img src=x onerror=alert(1)>Account B"
   });
   const profileUpdate = updateUserProfile(accountA, { displayName: "Mister Verde", avatar: "avatar-3.svg" });
 
@@ -56,6 +56,7 @@ try {
   assert.equal(savedA.single.played, 1);
   assert.equal(savedA.online.played, 1);
   assert.equal(savedA.recent.length, 2);
+  assert.equal(savedA.recent.some((match) => match.champion.includes("<")), false);
   assert.equal(savedA.profile.displayName, "Mister Verde");
   assert.equal(savedA.profile.avatar, "avatar-3.svg");
   assert.equal(profileUpdate.stats.single.played, 1);

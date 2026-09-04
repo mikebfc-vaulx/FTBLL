@@ -9,7 +9,8 @@ It includes:
 - synchronized flash auction;
 - squad setup after the auction;
 - ready system;
-- simulated league table and player stats.
+- simulated league table and player stats;
+- instant Italian/English interface switcher with a persistent language preference.
 
 ## Google login
 
@@ -27,6 +28,14 @@ Google Identity is loaded only after the user accepts functional cookies from th
 ## Privacy and cookie preferences
 
 The footer opens the Privacy Policy, Cookie Policy, and cookie preference panel. The preference is stored locally for up to 180 days. Choosing only necessary storage keeps Google Identity disabled while leaving the game available.
+
+## Security
+
+The Node server applies a strict static-file allowlist, so source files, environment files and the statistics store cannot be downloaded from the public site. Responses include CSP, clickjacking, MIME-sniffing, referrer, permissions and HTTPS security headers while retaining the sources required by Google Identity.
+
+API requests have JSON-only parsing, a 32 KB body limit, request timeouts and per-IP rate limits. Lobby member identifiers use cryptographically secure random values and are never exposed to other players; public lobby snapshots use separate display identifiers. Login sessions expire after 12 hours by default, inactive lobbies expire automatically, and lobby/player counts are bounded to protect server memory.
+
+Optional security limits can be adjusted through `SESSION_TTL_MS`, `MAX_BODY_BYTES`, `MAX_ACTIVE_LOBBIES`, `MAX_LOBBY_MANAGERS` and `MAX_RATE_LIMIT_BUCKETS`. Keep `NODE_ENV=production`, never commit `.env` or `stats-store.json`, and redeploy promptly after security updates.
 
 ## Account statistics
 
@@ -86,6 +95,7 @@ Recommended files to commit:
 index.html
 styles.css
 modern-ui.css
+i18n.js
 app.js
 server.js
 players.js
@@ -93,6 +103,7 @@ futbidder-logo.svg
 avatars/
 package.json
 README.md
+SECURITY-AUDIT.md
 .gitignore
 .devcontainer/devcontainer.json
 .github/workflows/check.yml

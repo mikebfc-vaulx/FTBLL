@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#07110d" />
     <link rel="icon" href="/futbidder-logo.svg?v=1" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css?v=27" />
-    <link rel="stylesheet" href="modern-ui.css?v=24" />
+    <link rel="stylesheet" href="modern-ui.css?v=26" />
   </head>
   <body data-view="home">
     <main class="app-shell">
@@ -531,7 +531,7 @@
           <p>FutBidder usa tecnologie di archiviazione locale assimilabili ai cookie. Al momento non utilizza cookie pubblicitari, di profilazione o strumenti analytics.</p>
           <div class="cookie-table" role="table" aria-label="Tecnologie utilizzate">
             <div class="cookie-table-row cookie-table-head" role="row"><strong>Categoria</strong><strong>Uso</strong><strong>Durata</strong></div>
-            <div class="cookie-table-row" role="row"><strong>Necessari</strong><span>Preferenza cookie, sessione, profilo locale e copia di recupero delle statistiche.</span><span>Sessione o fino alla cancellazione; preferenza per massimo 6 mesi.</span></div>
+            <div class="cookie-table-row" role="row"><strong>Necessari</strong><span>Preferenza cookie e lingua, sessione, profilo locale e copia di recupero delle statistiche.</span><span>Sessione o fino alla cancellazione; consenso cookie per massimo 6 mesi.</span></div>
             <div class="cookie-table-row" role="row"><strong>Funzionali Google</strong><span>Caricamento di Google Identity per effettuare l’accesso. Possono essere usate tecnologie di terze parti Google.</span><span>Secondo le impostazioni e l’informativa di Google.</span></div>
           </div>
           <h3>Come modificare la scelta</h3>
@@ -557,7 +557,12 @@
         <button id="acceptCookiesBtn" class="primary-button" type="button">Accetta tutti</button>
       </div>
     </aside>
+    <div id="languageSwitcher" class="language-switcher" role="group" aria-label="Lingua interfaccia">
+      <button class="language-option" type="button" data-language="it" aria-label="Italiano" title="Italiano" aria-pressed="true"><span class="language-flag language-flag-it" aria-hidden="true"></span></button>
+      <button class="language-option" type="button" data-language="en" aria-label="English" title="English" aria-pressed="false"><span class="language-flag language-flag-en" aria-hidden="true"></span></button>
+    </div>
     <script src="players.js?v=20"></script>
-    <script src="app.js?v=39"></script>
+    <script src="i18n.js?v=2"></script>
+    <script src="app.js?v=41"></script>
   </body>
 </html>
