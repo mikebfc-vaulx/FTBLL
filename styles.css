@@ -1480,6 +1480,61 @@ input {
   margin-top: 24px;
 }
 
+.calendar-heading,
+.calendar-navigation {
+  display: flex;
+  align-items: center;
+}
+
+.calendar-heading {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.calendar-heading h2,
+.calendar-heading p {
+  margin: 0;
+}
+
+.calendar-navigation {
+  gap: 10px;
+}
+
+.calendar-position {
+  min-width: 150px;
+  text-align: center;
+}
+
+.calendar-arrow {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--accent-dark);
+  color: #fff;
+  cursor: pointer;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.calendar-arrow:disabled {
+  cursor: default;
+  opacity: 0.32;
+}
+
+.calendar-card-stage {
+  min-height: 180px;
+}
+
+.calendar-round-card {
+  animation: calendar-card-in 180ms ease-out;
+}
+
+@keyframes calendar-card-in {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 .calendar-match-grid {
   display: grid;
   gap: 6px;
@@ -1562,6 +1617,17 @@ input {
   .bench-list {
     grid-column: auto;
     grid-row: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .calendar-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .calendar-navigation {
+    justify-content: space-between;
   }
 }
 

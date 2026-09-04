@@ -230,6 +230,7 @@ const state = {
   statsRecorded: false,
   statsSavePromise: null,
   currentMatchId: null,
+  finalCalendarIndex: 0,
   lineupAssignments: {},
   liveSimulation: {
     timer: null,
@@ -454,19 +455,25 @@ function createManagers(config) {
     isUser: true
   };
 
-  const rivals = names.slice(0, config.rivals).map((name, index) => ({
-    id: `ai-${index}`,
-    name,
-    avatar: profileAvatars[(index + 1) % profileAvatars.length],
-    credits: config.credits,
-    squad: [],
-    formation: config.formation,
-    tactic: "balanced",
-    tacticalPlan: normalizeTacticalPlan(null, "balanced"),
-    captainId: null,
-    stats: createEmptyStats(),
-    isUser: false
-  }));
+  const rivals = names.slice(0, config.rivals).map((name, index) => {
+    const reserveRate = config.rivals > 1 ? 0.05 + (index / (config.rivals - 1)) * 0.1 : 0.1;
+    return {
+      id: `ai-${index}`,
+      name,
+      avatar: profileAvatars[(index + 1) % profileAvatars.length],
+      credits: config.credits,
+      initialCredits: config.credits,
+      reserveRate,
+      reserveTarget: Math.round(config.credits * reserveRate),
+      squad: [],
+      formation: config.formation,
+      tactic: "balanced",
+      tacticalPlan: normalizeTacticalPlan(null, "balanced"),
+      captainId: null,
+      stats: createEmptyStats(),
+      isUser: false
+    };
+  });
 
   return [user, ...rivals];
 }
@@ -543,20 +550,37 @@ function aiMaxBid(manager, player) {
   const ownedForRole = roleCountOwned(manager, player.role);
   const fillsNeed = ownedForRole < neededForRole;
   const missingSlots = Math.max(0, managerMissingSlots(manager));
-  const reserveForVacancies = Math.max(0, missingSlots - (fillsNeed ? 1 : 0)) * 18;
-  const spendable = Math.max(0, manager.credits - reserveForVacancies);
-  const urgency = Math.max(0, 6 - manager.squad.length) * 0.05 + Math.max(0, missingSlots - 6) * 0.035;
+  const initialCredits = manager.initialCredits || state.config.credits;
+  const reserveTarget = manager.reserveTarget ?? Math.round(initialCredits * 0.1);
+  const spendable = Math.max(0, manager.credits - reserveTarget);
+  if (!spendable || !missingSlots) return 0;
+
+  const auctionsLeft = Math.max(1, state.auctionPool.length - state.playerIndex);
+  const competingTeams = Math.max(2, state.config.rivals + 1);
+  const expectedWinsLeft = Math.max(1, Math.min(missingSlots, auctionsLeft / competingTeams));
+  const expectedTotalWins = Math.max(1, state.config.rounds / competingTeams);
+  const baseAllocation = Math.max(1, (initialCredits - reserveTarget) / expectedTotalWins);
+  const currentAllocation = spendable / expectedWinsLeft;
+  const plannedAllocation = Math.min(currentAllocation, baseAllocation * 1.25);
+  const quality = Math.max(0, Math.min(1, (player.overall - 68) / 25));
+  const urgency = Math.max(0, missingSlots - expectedWinsLeft) * 0.035;
 
   let value = playerBasePrice(player);
-  value *= fillsNeed ? 1.12 : 0.58;
+  value *= fillsNeed ? 1.08 : 0.52;
   value *= state.config.aiAggression;
-  value *= 1 + urgency;
+  value *= 1 + Math.min(0.22, urgency);
 
-  if (manager.squad.length < 5 && fillsNeed) value *= 1.08;
+  if (fillsNeed) {
+    const plannedOffer = plannedAllocation * (0.72 + quality * 0.48 + (player.starPlayer ? 0.12 : 0));
+    value = Math.max(value, plannedOffer);
+  }
+  if (manager.squad.length < 4 && fillsNeed) value *= 1.04;
   if (!fillsNeed && player.overall < 86) value *= 0.72;
-  if (manager.credits < state.config.credits * 0.28) value *= 0.78;
+  if (manager.credits < initialCredits * 0.25) value *= 0.86;
 
-  const budgetCap = fillsNeed ? manager.credits * (0.24 + Math.min(0.1, urgency)) : manager.credits * 0.14;
+  const perPlayerCapRate = player.starPlayer ? 0.21 : 0.18;
+  const smoothCap = fillsNeed ? plannedAllocation * (1.28 + quality * 0.16) : plannedAllocation * 0.68;
+  const budgetCap = Math.min(initialCredits * perPlayerCapRate, smoothCap);
   return Math.max(0, Math.floor(Math.min(value, spendable, budgetCap)));
 }
 
@@ -2749,23 +2773,52 @@ function showResults() {
 function renderFinalCalendar() {
   if (!state.simulation?.rounds?.length) return;
   document.querySelector(".final-calendar")?.remove();
+  const rounds = [...state.simulation.rounds].sort((a, b) => b.round - a.round);
+  state.finalCalendarIndex = 0;
   const calendar = document.createElement("div");
   calendar.className = "final-calendar";
-  calendar.innerHTML = `<h2>Calendario</h2>${state.simulation.rounds
-    .map(
-      (round) => `
-        <div class="calendar-round">
-          <strong>Giornata ${round.round}</strong>
-          <div class="calendar-match-grid">
-            ${round.matches
-              .map((match) => `<div class="calendar-match"><span>${match.home} <strong>${match.homeGoals}-${match.awayGoals}</strong> ${match.away}</span><small>${match.events?.length ? match.events.join(" | ") : "Nessun gol"}</small></div>`)
-              .join("")}
-          </div>
-        </div>
-      `
-    )
-    .join("")}`;
+  calendar.innerHTML = `
+    <div class="calendar-heading">
+      <div>
+        <p class="eyebrow">Risultati giornata</p>
+        <h2>Calendario</h2>
+      </div>
+      <div class="calendar-navigation" aria-label="Navigazione giornate">
+        <button class="calendar-arrow" type="button" data-calendar-direction="newer" aria-label="Vai alla giornata successiva">&#8592;</button>
+        <strong class="calendar-position" aria-live="polite"></strong>
+        <button class="calendar-arrow" type="button" data-calendar-direction="older" aria-label="Vai alla giornata precedente">&#8594;</button>
+      </div>
+    </div>
+    <div class="calendar-card-stage"></div>
+  `;
   $("standingsList").insertAdjacentElement("afterend", calendar);
+
+  const renderSelectedRound = () => {
+    const round = rounds[state.finalCalendarIndex];
+    calendar.querySelector(".calendar-position").textContent = `Giornata ${round.round} di ${rounds.length}`;
+    calendar.querySelector(".calendar-card-stage").innerHTML = `
+      <div class="calendar-round calendar-round-card">
+        <strong>Giornata ${round.round}</strong>
+        <div class="calendar-match-grid">
+          ${round.matches
+            .map((match) => `<div class="calendar-match"><span>${match.home} <strong>${match.homeGoals}-${match.awayGoals}</strong> ${match.away}</span><small>${match.events?.length ? match.events.join(" | ") : "Nessun gol"}</small></div>`)
+            .join("")}
+        </div>
+      </div>
+    `;
+    calendar.querySelector('[data-calendar-direction="newer"]').disabled = state.finalCalendarIndex === 0;
+    calendar.querySelector('[data-calendar-direction="older"]').disabled = state.finalCalendarIndex === rounds.length - 1;
+  };
+
+  calendar.querySelector('[data-calendar-direction="newer"]').addEventListener("click", () => {
+    state.finalCalendarIndex = Math.max(0, state.finalCalendarIndex - 1);
+    renderSelectedRound();
+  });
+  calendar.querySelector('[data-calendar-direction="older"]').addEventListener("click", () => {
+    state.finalCalendarIndex = Math.min(rounds.length - 1, state.finalCalendarIndex + 1);
+    renderSelectedRound();
+  });
+  renderSelectedRound();
 }
 
 function comparePlayersByScoring(a, b) {
