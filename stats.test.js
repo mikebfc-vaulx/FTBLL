@@ -6,7 +6,7 @@ const path = require("path");
 const statsFile = path.join(os.tmpdir(), `ftball-stats-${process.pid}-${Date.now()}.json`);
 process.env.STATS_FILE = statsFile;
 
-const { recordUserStats, statsForUser, updateUserProfile } = require("../server");
+const { recordUserStats, statsForUser, updateUserProfile, uniqueGuestManagerName } = require("../server");
 
 try {
   const accountA = { id: "account-a" };
@@ -48,7 +48,7 @@ try {
     playerAssists: 7,
     champion: "Account B"
   });
-  updateUserProfile(accountA, { displayName: "Mister Verde", avatar: "avatar-3.svg" });
+  const profileUpdate = updateUserProfile(accountA, { displayName: "Mister Verde", avatar: "avatar-3.svg" });
 
   const savedA = statsForUser(accountA.id);
   const savedB = statsForUser(accountB.id);
@@ -58,9 +58,19 @@ try {
   assert.equal(savedA.recent.length, 2);
   assert.equal(savedA.profile.displayName, "Mister Verde");
   assert.equal(savedA.profile.avatar, "avatar-3.svg");
+  assert.equal(profileUpdate.stats.single.played, 1);
+  assert.equal(profileUpdate.stats.online.played, 1);
+  assert.equal(profileUpdate.stats.recent.length, 2);
   assert.equal(savedB.single.played, 0);
   assert.equal(savedB.online.played, 0);
   assert.equal(savedB.recent.length, 0);
+  const lobby = { managers: [{ name: "Manager-1321" }] };
+  for (let index = 0; index < 30; index += 1) {
+    const generatedName = uniqueGuestManagerName(lobby);
+    assert.match(generatedName, /^Manager-[0-9]{4}$/);
+    assert.equal(lobby.managers.some((manager) => manager.name.toLowerCase() === generatedName.toLowerCase()), false);
+    lobby.managers.push({ name: generatedName });
+  }
   console.log("Statistiche account: separazione, deduplicazione e profilo verificati.");
 } finally {
   fs.rmSync(statsFile, { force: true });

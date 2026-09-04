@@ -1004,13 +1004,14 @@ function renderAuthWidget() {
     $("googleFallbackBtn").title = "Accetta i cookie funzionali per caricare Google Identity.";
   }
   $("logoutBtn").classList.toggle("is-hidden", !logged);
+  $("joinIdentityHint").textContent = logged
+    ? `Entrerai nella lobby come ${name}.`
+    : "Se non sei connesso riceverai automaticamente un nome Manager-#### libero.";
   if (logged) {
     $("hostNameInput").value = name;
-    $("joinNameInput").value = name;
     if (!state.profileModalOpen) $("displayNameInput").value = name;
   } else {
     $("hostNameInput").value = "Host";
-    $("joinNameInput").value = "Manager";
     if (!state.profileModalOpen) $("displayNameInput").value = "Manager";
   }
   renderProfileEditAvailability();
@@ -1029,7 +1030,6 @@ function applyProfileDefaultsToForms() {
   if (!state.auth.user) return;
   const name = displayName();
   $("hostNameInput").value = name;
-  $("joinNameInput").value = name;
 }
 
 function renderAvatarPicker() {
@@ -1403,6 +1403,7 @@ async function saveProfile() {
   if (!state.profileModalOpen || state.view !== "home") return;
   const cleanName = ($("displayNameInput").value || "Manager").replace(/[<>]/g, "").trim().slice(0, 18) || "Manager";
   const avatar = state.profileDraftAvatar || currentAvatar();
+  const sessionVersion = state.auth.sessionVersion;
   $("profileSaveStatus").textContent = "Salvataggio profilo...";
   if (!state.auth.token) {
     state.auth.user = { publicName: cleanName, avatar };
@@ -1414,12 +1415,19 @@ async function saveProfile() {
     return;
   }
   try {
+    if (state.statsSavePromise) await state.statsSavePromise;
+    if (state.auth.sessionVersion !== sessionVersion || !state.auth.token || !state.auth.user) return;
+    const cachedAccount = readAccountCache(state.auth.user.id);
+    const preservedStats = mergeAccountStats(state.auth.stats, cachedAccount?.stats);
     const data = await authedApi("/api/profile", { displayName: cleanName, avatar });
+    if (state.auth.sessionVersion !== sessionVersion || !state.auth.token || !state.auth.user) return;
+    const mergedStats = mergeAccountStats(preservedStats, data.stats);
     state.auth.user = data.user;
+    state.auth.stats = mergedStats;
     localStorage.setItem("ftballAuthUser", JSON.stringify(data.user));
-    writeAccountCache(data.user, data.stats);
+    writeAccountCache(data.user, mergedStats);
     renderAuthWidget();
-    renderStatsView(data.stats);
+    renderStatsView(mergedStats);
     state.profileDraftAvatar = currentAvatar();
     renderAvatarPicker();
     $("profileSaveStatus").textContent = "Profilo salvato.";
@@ -1573,7 +1581,11 @@ async function joinMultiplayerLobby() {
     stopMultiplayerPolling();
     clearMultiplayerSession();
     const code = $("joinCodeInput").value.trim().toUpperCase();
-    const result = await api(`/api/lobbies/${code}/join`, { name: $("joinNameInput").value || displayName(), avatar: currentAvatar() });
+    const hasAccountProfile = Boolean(state.auth.token && state.auth.user);
+    const result = await api(`/api/lobbies/${code}/join`, {
+      name: hasAccountProfile ? displayName() : "",
+      avatar: hasAccountProfile ? currentAvatar() : null
+    });
     state.multiplayer.code = result.code;
     state.multiplayer.playerId = result.playerId;
     state.multiplayer.isHost = false;

@@ -505,6 +505,19 @@ function nextColor(lobby) {
   return colors.find((color) => !used.has(color)) || colors[Math.floor(Math.random() * colors.length)];
 }
 
+function uniqueGuestManagerName(lobby) {
+  const usedNames = new Set((lobby?.managers || []).map((manager) => String(manager.name || "").toLowerCase()));
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const candidate = `Manager-${crypto.randomInt(1000, 10000)}`;
+    if (!usedNames.has(candidate.toLowerCase())) return candidate;
+  }
+  for (let suffix = 1000; suffix <= 9999; suffix += 1) {
+    const candidate = `Manager-${suffix}`;
+    if (!usedNames.has(candidate.toLowerCase())) return candidate;
+  }
+  return `Manager-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+}
+
 function newPlayer(name, credits, formation, isHost = false, color = colors[0], avatar = AVATARS[0]) {
   return {
     id: Math.random().toString(36).slice(2, 12),
@@ -1143,7 +1156,9 @@ async function handleApi(req, res, parts, url) {
   if (req.method === "POST" && parts[3] === "join") {
     if (lobby.status !== "lobby") return json(res, 400, { error: "Asta gia iniziata" });
     const managerFormation = formationNeeds[body.formation] ? body.formation : lobby.settings.formation;
-    const manager = newPlayer(body.name, lobby.settings.credits, managerFormation, false, nextColor(lobby), body.avatar);
+    const requestedName = String(body.name || "").trim();
+    const managerName = requestedName ? sanitizeDisplayName(requestedName) : uniqueGuestManagerName(lobby);
+    const manager = newPlayer(managerName, lobby.settings.credits, managerFormation, false, nextColor(lobby), body.avatar);
     lobby.managers.push(manager);
     lobby.log.push(`${manager.name} entra in lobby`);
     return json(res, 200, { code: lobby.code, playerId: manager.id });
@@ -1338,6 +1353,7 @@ module.exports = {
   statsForUser,
   recordUserStats,
   updateUserProfile,
+  uniqueGuestManagerName,
   playMatch,
   buildCalendarRounds,
   emptyStats,
