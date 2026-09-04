@@ -251,7 +251,8 @@ const state = {
     user: restoredAuthUser,
     stats: null,
     googleClientId: null,
-    googleReady: false
+    googleReady: false,
+    sessionVersion: 0
   },
   multiplayer: {
     code: null,
@@ -832,6 +833,7 @@ async function api(path, payload = null) {
 }
 
 function clearLocalAuthSession({ returnHome = false } = {}) {
+  state.auth.sessionVersion += 1;
   state.auth.token = null;
   state.auth.user = null;
   state.auth.stats = null;
@@ -840,7 +842,11 @@ function clearLocalAuthSession({ returnHome = false } = {}) {
   localStorage.removeItem("ftballGuestProfile");
   renderAuthWidget();
   renderStatsView();
-  window.google?.accounts?.id?.disableAutoSelect?.();
+  try {
+    window.google?.accounts?.id?.disableAutoSelect?.();
+  } catch {
+    // Il logout locale non dipende dalla disponibilita del servizio Google.
+  }
   if (returnHome) showView("home");
 }
 
@@ -863,6 +869,7 @@ function setAuthSession(token, user) {
   const cachedAccount = user?.id ? readAccountCache(user.id) : null;
   const guestProfile = state.auth.user && !state.auth.user.id ? state.auth.user : null;
   const cachedUser = cachedAccount?.user || guestProfile;
+  state.auth.sessionVersion += 1;
   state.auth.token = token;
   state.auth.user = user
     ? preferredAccountUser({ ...user, avatar: profileAvatars.includes(user.avatar) ? user.avatar : profileAvatars[0] }, cachedUser)
@@ -1202,6 +1209,7 @@ async function loadAccountStats() {
     renderStatsView();
     return;
   }
+  const sessionVersion = state.auth.sessionVersion;
   const cachedAccount = readAccountCache(state.auth.user?.id);
   const cachedStats = mergeAccountStats(state.auth.stats, cachedAccount?.stats);
   renderStatsView(cachedStats);
@@ -1209,6 +1217,7 @@ async function loadAccountStats() {
   try {
     if (state.statsSavePromise) await state.statsSavePromise;
     const data = await authedApi("/api/stats");
+    if (state.auth.sessionVersion !== sessionVersion || !state.auth.token || !state.auth.user) return;
     let mergedStats = mergeAccountStats(cachedStats, data.stats);
     if (data.user) {
       state.auth.user = preferredAccountUser(data.user, cachedAccount?.user);
@@ -1230,6 +1239,7 @@ async function loadAccountStats() {
     writeAccountCache(state.auth.user, mergedStats);
     renderStatsView(mergedStats);
   } catch (error) {
+    if (state.auth.sessionVersion !== sessionVersion) return;
     if (error.status === 401) {
       clearLocalAuthSession();
       $("statsStatusText").textContent = "La sessione era scaduta. Accedi nuovamente con Google.";
@@ -1242,21 +1252,26 @@ async function loadAccountStats() {
 
 async function validateRestoredSession() {
   if (!state.auth.token || !state.auth.user) return;
+  const sessionVersion = state.auth.sessionVersion;
+  const userId = state.auth.user.id;
   try {
     const data = await authedApi("/api/stats");
-    const cachedAccount = readAccountCache(state.auth.user.id);
+    if (state.auth.sessionVersion !== sessionVersion || !state.auth.token || !state.auth.user) return;
+    const cachedAccount = readAccountCache(userId);
     state.auth.user = preferredAccountUser(data.user || state.auth.user, cachedAccount?.user);
     state.auth.stats = mergeAccountStats(cachedAccount?.stats, data.stats);
     localStorage.setItem("ftballAuthUser", JSON.stringify(state.auth.user));
     writeAccountCache();
     renderAuthWidget();
   } catch (error) {
+    if (state.auth.sessionVersion !== sessionVersion) return;
     if (error.status === 401) clearLocalAuthSession();
   }
 }
 
 async function recordCurrentMatchStats(ranking) {
   if (!state.auth.token || state.statsRecorded) return;
+  const sessionVersion = state.auth.sessionVersion;
   const user = getUser();
   if (!user?.stats) return;
   const position = ranking.findIndex((manager) => manager.id === user.id || manager.isUser) + 1;
@@ -1288,12 +1303,13 @@ async function recordCurrentMatchStats(ranking) {
   state.statsSavePromise = savePromise;
   try {
     const data = await savePromise;
+    if (state.auth.sessionVersion !== sessionVersion || !state.auth.token || !state.auth.user) return;
     const mergedStats = mergeAccountStats(optimisticStats, data.stats);
     state.auth.stats = mergedStats;
     if (data.user) state.auth.user = preferredAccountUser(data.user, state.auth.user);
     writeAccountCache(state.auth.user, mergedStats);
   } catch {
-    state.statsRecorded = false;
+    if (state.auth.sessionVersion === sessionVersion) state.statsRecorded = false;
   } finally {
     if (state.statsSavePromise === savePromise) state.statsSavePromise = null;
   }
