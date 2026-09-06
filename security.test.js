@@ -33,6 +33,17 @@ async function run() {
       body: "{"
     });
     assert.equal(invalidJson.status, 400);
+    for (const payload of [null, [], "text", 42]) {
+      assert.equal((await jsonRequest("/api/lobbies", payload)).status, 400);
+    }
+    for (const formation of ["__proto__", "constructor", "toString"]) {
+      const response = await jsonRequest("/api/lobbies", { formation, botDifficulty: formation });
+      assert.equal(response.status, 200);
+      const credentials = await response.json();
+      const snapshot = await (await fetch(`${origin}/api/lobbies/${credentials.code}`)).json();
+      assert.equal(snapshot.settings.formation, "4-3-3");
+      assert.equal(snapshot.settings.botDifficulty, "normal");
+    }
 
     const unsupportedBody = await fetch(`${origin}/api/lobbies`, {
       method: "POST",

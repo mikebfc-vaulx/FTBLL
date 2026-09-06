@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const players = require("./players");
+const own = (object, key) => typeof key === "string" && Object.hasOwn(object, key);
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
@@ -85,12 +86,12 @@ const compatibleRoleMoves = {
 };
 
 function normalizeTacticalPlan(plan, preset = "balanced") {
-  const fallback = tacticalPresets[preset] || tacticalPresets.balanced;
+  const fallback = own(tacticalPresets, preset) ? tacticalPresets[preset] : tacticalPresets.balanced;
   return {
-    mentality: tacticalOptions.mentality[plan?.mentality] ? plan.mentality : fallback.mentality,
-    buildup: tacticalOptions.buildup[plan?.buildup] ? plan.buildup : fallback.buildup,
-    pressing: tacticalOptions.pressing[plan?.pressing] ? plan.pressing : fallback.pressing,
-    defensiveLine: tacticalOptions.defensiveLine[plan?.defensiveLine] ? plan.defensiveLine : fallback.defensiveLine
+    mentality: own(tacticalOptions.mentality, plan?.mentality) ? plan.mentality : fallback.mentality,
+    buildup: own(tacticalOptions.buildup, plan?.buildup) ? plan.buildup : fallback.buildup,
+    pressing: own(tacticalOptions.pressing, plan?.pressing) ? plan.pressing : fallback.pressing,
+    defensiveLine: own(tacticalOptions.defensiveLine, plan?.defensiveLine) ? plan.defensiveLine : fallback.defensiveLine
   };
 }
 
@@ -221,7 +222,9 @@ function cleanupRateLimits() {
 }
 
 function requestIp(req) {
-  const forwarded = String(req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  // Trust proxy headers only behind a configured proxy. Render appends the peer IP.
+  const trustProxy = process.env.TRUST_PROXY === "1" || process.env.RENDER === "true";
+  const forwarded = trustProxy ? String(req.headers["x-forwarded-for"] || "").split(",").pop().trim() : "";
   return (forwarded || req.socket.remoteAddress || "unknown").slice(0, 80);
 }
 
@@ -299,7 +302,9 @@ function readBody(req) {
       }
       const body = Buffer.concat(chunks).toString("utf8");
       try {
-        resolve(body ? JSON.parse(body) : {});
+        const parsed = body ? JSON.parse(body) : {};
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Object required");
+        resolve(parsed);
       } catch {
         const error = new Error("JSON non valido");
         error.status = 400;
@@ -380,9 +385,11 @@ function normalizeStoredUserStats(stats = {}) {
 function readStatsStore() {
   try {
     const parsed = JSON.parse(fs.readFileSync(STATS_FILE, "utf8"));
-    return parsed && typeof parsed.users === "object" ? parsed : { users: {} };
-  } catch {
-    return { users: {} };
+    if (!parsed || !parsed.users || typeof parsed.users !== "object" || Array.isArray(parsed.users)) throw new Error("Archivio statistiche non valido");
+    return parsed;
+  } catch (error) {
+    if (error.code === "ENOENT") return { users: {} };
+    throw error;
   }
 }
 
@@ -493,12 +500,17 @@ async function verifyGoogleCredential(credential) {
 
 function clamp(value, min, max) {
   const parsed = Number(value);
-  if (Number.isNaN(parsed)) return min;
+  if (!Number.isFinite(parsed)) return min;
   return Math.min(max, Math.max(min, parsed));
 }
 
 function shuffle(items) {
-  return [...items].sort(() => Math.random() - 0.5);
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
 }
 
 const starPlayerChance = 0.2;
@@ -757,11 +769,7 @@ function publicLobby(lobby, requestedPlayerId) {
     log: lobby.log.slice(-30).reverse(),
     results: publicResults(lobby, playerId)
   };
-  if (lobby.status === "results") {
-    const humanIds = lobby.managers.filter((manager) => !manager.isBot).map((manager) => manager.id);
-    const deliveredToAll = humanIds.every((id) => lobby.resultSeenBy?.includes(id));
-    if (deliveredToAll) lobbies.delete(lobby.code);
-  }
+  // Results remain available until the normal TTL for retries and other tabs.
   return snapshot;
 }
 
@@ -874,13 +882,17 @@ function getLineupSlots(formation) {
 function sanitizeLineup(manager, lineup) {
   if (!lineup || typeof lineup !== "object" || Array.isArray(lineup)) return manager.lineup || {};
   const validSlots = new Set(getLineupSlots(manager.formation).map((slot) => slot.id));
-  const validPlayers = new Set(manager.squad.flatMap((player) => [player.uid, player.name]).filter(Boolean));
+  const validPlayers = new Map(manager.squad.map((player) => [player.uid, player.uid]));
+  manager.squad.forEach((player) => {
+    if (!validPlayers.has(player.name)) validPlayers.set(player.name, player.uid);
+  });
   const usedPlayers = new Set();
   const sanitized = Object.create(null);
   Object.entries(lineup).slice(0, 11).forEach(([slotId, playerId]) => {
-    if (!validSlots.has(slotId) || !validPlayers.has(playerId) || usedPlayers.has(playerId)) return;
-    sanitized[slotId] = playerId;
-    usedPlayers.add(playerId);
+    const canonicalId = validPlayers.get(playerId);
+    if (!validSlots.has(slotId) || !canonicalId || usedPlayers.has(canonicalId)) return;
+    sanitized[slotId] = canonicalId;
+    usedPlayers.add(canonicalId);
   });
   return sanitized;
 }
@@ -918,8 +930,9 @@ function fillVacancies(lobby, playerId) {
   starters = buildLineup(manager, formation);
   missing = slots.filter((slot, index) => !starters[index]);
   missing.forEach((slot) => {
-    const player = makeGenerated(slot.role);
-    manager.squad.push(player);
+    const reusable = available.findIndex((player) => player.generated);
+    const player = reusable >= 0 ? available.splice(reusable, 1)[0] : makeGenerated(slot.role);
+    if (reusable < 0) manager.squad.push(player);
     manager.lineup[slot.id] = player.uid;
   });
   manager.ready = false;
@@ -946,14 +959,14 @@ function markReady(lobby, playerId, tactic, tacticalPlan, captainId, lineup = nu
   const manager = lobby.managers.find((item) => item.id === playerId);
   if (!manager) return;
   fillVacancies(lobby, playerId);
-  manager.tactic = tacticProfiles[tactic] ? tactic : "balanced";
+  manager.tactic = own(tacticProfiles, tactic) ? tactic : "balanced";
   manager.tacticalPlan = normalizeTacticalPlan(tacticalPlan, manager.tactic);
   manager.lineup = sanitizeLineup(manager, lineup);
   const starters = buildLineupSlots(manager, manager.formation || lobby.settings.formation).filter((slot) => slot.player);
   manager.captainId = starters.some((slot) => (slot.player.uid || slot.player.name) === captainId)
     ? captainId
     : resolveCaptain(manager, starters)?.player?.uid || resolveCaptain(manager, starters)?.player?.name || null;
-  manager.ready = true;
+  manager.ready = starters.length === 11;
 }
 
 function comparePlayersByScoring(a, b) {
@@ -1324,11 +1337,11 @@ async function handleApi(req, res, parts, url) {
     cleanupLobbies();
     if (lobbies.size >= MAX_ACTIVE_LOBBIES) return json(res, 503, { error: "Troppe lobby attive. Riprova tra poco." });
     const settings = {
-      credits: clamp(body.credits || 650, 250, 1200),
-      rounds: clamp(body.rounds || 24, 12, players.length),
-      formation: formationNeeds[body.formation] ? body.formation : "4-3-3",
-      botCount: clamp(body.botCount || 0, 0, MAX_LOBBY_MANAGERS - 1),
-      botDifficulty: botDifficultyRanges[body.botDifficulty] ? body.botDifficulty : "normal"
+      credits: Math.trunc(clamp(body.credits || 650, 250, 1200)),
+      rounds: Math.trunc(clamp(body.rounds || 24, 12, players.length)),
+      formation: own(formationNeeds, body.formation) ? body.formation : "4-3-3",
+      botCount: Math.trunc(clamp(body.botCount || 0, 0, MAX_LOBBY_MANAGERS - 1)),
+      botDifficulty: own(botDifficultyRanges, body.botDifficulty) ? body.botDifficulty : "normal"
     };
     const lobbyCode = code();
     const host = newPlayer(body.name, settings.credits, settings.formation, true, colors[0], body.avatar);
@@ -1354,17 +1367,16 @@ async function handleApi(req, res, parts, url) {
 
   const lobby = lobbies.get(parts[2]);
   if (!lobby) return json(res, 404, { error: "Lobby non trovata" });
-  if (lobby.status !== "results") touchLobby(lobby);
-
   if (req.method === "POST" && parts[3] === "join") {
     if (lobby.status !== "lobby") return json(res, 400, { error: "Asta gia iniziata" });
     const humanCount = lobby.managers.filter((manager) => !manager.isBot).length;
     if (humanCount >= MAX_HUMAN_PLAYERS || humanCount + (lobby.settings.botCount || 0) >= MAX_LOBBY_MANAGERS) return json(res, 409, { error: "Lobby piena" });
-    const managerFormation = formationNeeds[body.formation] ? body.formation : lobby.settings.formation;
+    const managerFormation = own(formationNeeds, body.formation) ? body.formation : lobby.settings.formation;
     const requestedName = String(body.name || "").trim();
     const managerName = requestedName ? sanitizeDisplayName(requestedName) : uniqueGuestManagerName(lobby);
     const manager = newPlayer(managerName, lobby.settings.credits, managerFormation, false, nextColor(lobby), body.avatar);
     lobby.managers.push(manager);
+    touchLobby(lobby);
     lobby.log.push(`${manager.name} entra in lobby`);
     return json(res, 200, { code: lobby.code, playerId: manager.id });
   }
@@ -1395,6 +1407,7 @@ async function handleApi(req, res, parts, url) {
     return json(res, 403, { error: "Manager non autorizzato" });
   }
   if (req.method === "POST" && parts[3] === "start") {
+    if (lobby.status !== "lobby") return json(res, 409, { error: "Asta gia iniziata" });
     if (playerId !== lobby.hostId) return json(res, 403, { error: "Solo host" });
     const humanManagers = lobby.managers.filter((manager) => !manager.isBot);
     if (humanManagers.length < 2 && (lobby.settings.botCount || 0) <= 0) return json(res, 400, { error: "Serve almeno un amico o un bot" });
@@ -1417,11 +1430,11 @@ async function handleApi(req, res, parts, url) {
   }
   if (req.method === "POST" && parts[3] === "settings") {
     if (playerId !== lobby.hostId || lobby.status !== "lobby") return json(res, 403, { error: "Solo host in lobby" });
-    lobby.settings.credits = clamp(body.credits, 250, 1200);
-    lobby.settings.rounds = clamp(body.rounds, 12, players.length);
-    lobby.settings.botCount = clamp(body.botCount || 0, 0, Math.max(0, MAX_LOBBY_MANAGERS - lobby.managers.filter((manager) => !manager.isBot).length));
-    lobby.settings.botDifficulty = botDifficultyRanges[body.botDifficulty] ? body.botDifficulty : lobby.settings.botDifficulty || "normal";
-    lobby.settings.formation = formationNeeds[body.formation] ? body.formation : lobby.settings.formation;
+    lobby.settings.credits = Math.trunc(clamp(body.credits, 250, 1200));
+    lobby.settings.rounds = Math.trunc(clamp(body.rounds, 12, players.length));
+    lobby.settings.botCount = Math.trunc(clamp(body.botCount || 0, 0, Math.max(0, MAX_LOBBY_MANAGERS - lobby.managers.filter((manager) => !manager.isBot).length)));
+    lobby.settings.botDifficulty = own(botDifficultyRanges, body.botDifficulty) ? body.botDifficulty : lobby.settings.botDifficulty || "normal";
+    lobby.settings.formation = own(formationNeeds, body.formation) ? body.formation : lobby.settings.formation;
     lobby.pool = buildBalancedAuctionPool(players, lobby.settings.rounds, lobby.managers.filter((manager) => !manager.isBot).map((manager) => manager.formation || lobby.settings.formation));
     lobby.managers.forEach((manager) => {
       manager.credits = lobby.settings.credits;
@@ -1438,7 +1451,7 @@ async function handleApi(req, res, parts, url) {
     if (colors.includes(body.color) && !colorTaken) manager.color = body.color;
     if (body.name) manager.name = sanitizeDisplayName(body.name, manager.name);
     if (body.avatar) manager.avatar = sanitizeAvatar(body.avatar);
-    if (formationNeeds[body.formation] && body.formation !== manager.formation) {
+    if (own(formationNeeds, body.formation) && body.formation !== manager.formation) {
       manager.formation = body.formation;
       lobby.pool = buildBalancedAuctionPool(players, lobby.settings.rounds, lobby.managers.filter((item) => !item.isBot).map((item) => item.formation || lobby.settings.formation));
       manager.ready = false;
@@ -1471,7 +1484,7 @@ async function handleApi(req, res, parts, url) {
     const manager = lobby.managers.find((item) => item.id === playerId);
     if (!manager) return json(res, 400, { error: "Manager non valido" });
     manager.lineup = sanitizeLineup(manager, body.lineup);
-    if (tacticProfiles[body.tactic]) manager.tactic = body.tactic;
+    if (own(tacticProfiles, body.tactic)) manager.tactic = body.tactic;
     manager.tacticalPlan = normalizeTacticalPlan(body.tacticalPlan, manager.tactic);
     if (body.captainId && manager.squad.some((player) => player.uid === body.captainId || player.name === body.captainId)) manager.captainId = body.captainId;
     manager.ready = false;
@@ -1594,6 +1607,7 @@ if (require.main === module) {
 
 module.exports = {
   server,
+  newPlayer, fillVacancies, sanitizeLineup, markReady, simulate, publicLobby,
   repartoForRole,
   starBonusesByReparto,
   tacticalOptions,

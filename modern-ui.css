@@ -902,8 +902,8 @@ select option {
 
 .language-option {
   display: grid;
-  width: 38px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   place-items: center;
   border: 1px solid transparent;

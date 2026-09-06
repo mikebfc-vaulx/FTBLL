@@ -72,7 +72,14 @@ try {
     assert.equal(lobby.managers.some((manager) => manager.name.toLowerCase() === generatedName.toLowerCase()), false);
     lobby.managers.push({ name: generatedName });
   }
-  console.log("Statistiche account: separazione, deduplicazione e profilo verificati.");
+  const savedBytes = fs.readFileSync(statsFile, 'utf8');
+  delete require.cache[require.resolve('../server')];
+  assert.equal(require('../server').statsForUser(accountA.id).single.played, 1);
+  fs.writeFileSync(statsFile, '{broken');
+  assert.throws(() => updateUserProfile(accountA, { displayName: 'Do not overwrite' }));
+  assert.equal(fs.readFileSync(statsFile, 'utf8'), '{broken');
+  fs.writeFileSync(statsFile, savedBytes);
+  console.log("Statistiche account: separazione, deduplicazione, profilo, rilettura e protezione file corrotto verificati.");
 } finally {
   fs.rmSync(statsFile, { force: true });
 }

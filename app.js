@@ -312,7 +312,12 @@ function showView(name) {
 }
 
 function shuffle(items) {
-  return [...items].sort(() => Math.random() - 0.5);
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
 }
 
 const starPlayerChance = 0.2;
@@ -541,8 +546,8 @@ function maxBidFor(manager) {
 
 function clampNumber(value, min, max) {
   const parsed = Number(value);
-  if (Number.isNaN(parsed)) return min;
-  return Math.min(max, Math.max(min, parsed));
+  if (!Number.isFinite(parsed)) return min;
+  return Math.trunc(Math.min(max, Math.max(min, parsed)));
 }
 
 function playerBasePrice(player) {
@@ -649,7 +654,9 @@ function aiMaxBid(manager, player) {
   const smoothCap = positionUtility >= 1
     ? plannedAllocation * (1.28 + quality * 0.16) * desireCapFactor
     : plannedAllocation * 0.68 * desireCapFactor;
-  const budgetCap = Math.min(initialCredits * perPlayerCapRate, smoothCap);
+  // Preserve individual desire even when several bidders reach the spending cap.
+  const individualCap = initialCredits * perPlayerCapRate * Math.min(1.18, 0.55 + desire * 0.42);
+  const budgetCap = Math.min(individualCap, smoothCap);
   return Math.max(0, Math.floor(Math.min(value, spendable, budgetCap)));
 }
 
@@ -797,8 +804,9 @@ function fillVacantSlots(manager = getUser()) {
 
   missing = buildLineup(manager).starters.filter((slot) => !slot.player);
   missing.forEach((slot) => {
-    const player = makeGeneratedPlayer(slot.role);
-    manager.squad.push(player);
+    const reusable = available.findIndex((player) => player.generated);
+    const player = reusable >= 0 ? available.splice(reusable, 1)[0] : makeGeneratedPlayer(slot.role);
+    if (reusable < 0) manager.squad.push(player);
     manager.lineup[slot.id] = player.uid;
   });
   return missing.length;
@@ -822,6 +830,7 @@ function resetSeasonStats() {
 }
 
 function clearMatchState() {
+  clearTimeout(state.auctionTransitionId);
   clearInterval(state.tickId);
   clearInterval(state.liveSimulation.timer);
   state.running = false;
@@ -916,7 +925,7 @@ async function api(path, payload = null, extraHeaders = {}) {
   const options = payload
     ? { method: "POST", headers: { "Content-Type": "application/json", ...extraHeaders }, body: JSON.stringify(payload) }
     : { method: "GET", headers: { ...extraHeaders } };
-  const response = await fetch(path, options);
+  const response = await fetch(path, { ...options, signal: AbortSignal.timeout(15000) });
   const data = await response.json();
   if (!response.ok) {
     const error = new Error(data.error || "Errore server");
@@ -927,6 +936,7 @@ async function api(path, payload = null, extraHeaders = {}) {
 }
 
 function clearLocalAuthSession({ returnHome = false } = {}) {
+  if (returnHome) resetGame();
   state.auth.sessionVersion += 1;
   state.auth.token = null;
   state.auth.user = null;
@@ -949,7 +959,7 @@ async function authedApi(path, payload = null) {
   const options = payload
     ? { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${state.auth.token}` }, body: JSON.stringify(payload) }
     : { method: "GET", headers: { Authorization: `Bearer ${state.auth.token}` } };
-  const response = await fetch(path, options);
+  const response = await fetch(path, { ...options, signal: AbortSignal.timeout(15000) });
   const data = await response.json();
   if (!response.ok) {
     const error = new Error(data.error || "Errore server");
@@ -1050,8 +1060,17 @@ function renderAvatarPicker() {
   });
 }
 
+let modalReturnFocus = null;
 function syncModalPageState() {
-  document.body.classList.toggle("modal-open", state.statsModalOpen || state.profileModalOpen || Boolean(state.legalModalOpen));
+  const open = state.statsModalOpen || state.profileModalOpen || Boolean(state.legalModalOpen);
+  const wasOpen = document.body.classList.contains("modal-open");
+  if (open && !wasOpen) modalReturnFocus = document.activeElement;
+  document.body.classList.toggle("modal-open", open);
+  document.querySelector(".app-shell").inert = Boolean(open);
+  if (!open && wasOpen) {
+    if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
+    modalReturnFocus = null;
+  }
 }
 
 function openStatsModal() {
@@ -1607,26 +1626,35 @@ function startMultiplayerPolling() {
 }
 
 function stopMultiplayerPolling() {
+  state.multiplayer.pollGeneration = (state.multiplayer.pollGeneration || 0) + 1;
+  state.multiplayer.pollPending = false;
   if (state.multiplayer.pollId) clearInterval(state.multiplayer.pollId);
   state.multiplayer.pollId = null;
 }
 
 async function pollMultiplayer() {
-  if (!state.multiplayer.code || !state.multiplayer.playerId || state.multiplayer.bidPending) return;
+  if (!state.multiplayer.code || !state.multiplayer.playerId || state.multiplayer.bidPending || state.multiplayer.pollPending) return;
+  const generation = state.multiplayer.pollGeneration;
+  state.multiplayer.pollPending = true;
   try {
     const requestStartedAt = Date.now();
     const snapshot = await api(`/api/lobbies/${state.multiplayer.code}`, null, { "X-FutBidder-Player": state.multiplayer.playerId });
     snapshot.clientClockReference = (requestStartedAt + Date.now()) / 2;
-    if (state.multiplayer.bidPending) return;
+    if (generation !== state.multiplayer.pollGeneration || state.multiplayer.bidPending) return;
     applyMultiplayerSnapshot(snapshot);
   } catch (error) {
+    if (generation !== state.multiplayer.pollGeneration) return;
     setMultiplayerStatus(error.message);
     if (state.view === "lobby") setLobbyActionStatus(error.message);
     if (state.view === "squad") $("lineupSummary").textContent = error.message;
+    if (error.status === 404 || error.status === 403) stopMultiplayerPolling();
+  } finally {
+    if (generation === state.multiplayer.pollGeneration) state.multiplayer.pollPending = false;
   }
 }
 
 function applyMultiplayerSnapshot(snapshot) {
+  if (!state.multiplayer.code || snapshot.code !== state.multiplayer.code) return;
   state.mode = "multi";
   if (Number.isFinite(snapshot.serverNow)) {
     const localReference = snapshot.clientClockReference || Date.now();
@@ -1940,8 +1968,12 @@ async function multiplayerBid(increment) {
 }
 
 async function multiplayerFill() {
-  await api(`/api/lobbies/${state.multiplayer.code}/fill`, { playerId: state.multiplayer.playerId });
-  pollMultiplayer();
+  try {
+    await api(`/api/lobbies/${state.multiplayer.code}/fill`, { playerId: state.multiplayer.playerId });
+    pollMultiplayer();
+  } catch (error) {
+    $("lineupSummary").textContent = error.message;
+  }
 }
 
 async function multiplayerReady() {
@@ -2049,6 +2081,8 @@ async function saveLobbySettings() {
     });
     state.lobbySettingsDirty = false;
     applyMultiplayerSnapshot(snapshot);
+  } catch (error) {
+    setLobbyActionStatus(error.message);
   } finally {
     state.lobbySettingsSaving = false;
     renderLobbySettingsSaveState();
@@ -2056,6 +2090,7 @@ async function saveLobbySettings() {
 }
 
 function beginAuction() {
+  state.auctionDeadline = performance.now() + 10000;
   state.currentBid = 0;
   state.leaderId = null;
   state.userBidThisAuction = false;
@@ -2074,7 +2109,7 @@ function scheduleNextAiLateBid() {
 }
 
 function tickAuction() {
-  state.timeLeft = Math.max(0, state.timeLeft - 0.1);
+  state.timeLeft = Math.max(0, (state.auctionDeadline - performance.now()) / 1000);
   maybeAiBid();
   renderAuction();
 
@@ -2140,6 +2175,7 @@ function placeBid(managerId, amount) {
   state.leaderId = managerId;
   if (state.timeLeft < 5) {
     state.timeLeft = 5;
+    state.auctionDeadline = performance.now() + 5000;
     if (state.mode === "single") scheduleNextAiLateBid();
   }
   renderGame();
@@ -2166,9 +2202,9 @@ function closeAuction() {
   renderGame();
 
   if (state.playerIndex >= state.auctionPool.length) {
-    setTimeout(showSquadBuilder, 900);
+    state.auctionTransitionId = setTimeout(showSquadBuilder, 900);
   } else {
-    setTimeout(beginAuction, 900);
+    state.auctionTransitionId = setTimeout(beginAuction, 900);
   }
 }
 
@@ -2200,12 +2236,16 @@ function skipAuctionPlayer() {
   const player = currentPlayer();
   if (!player) return;
 
-  const candidates = state.managers
+  const candidates = shuffle(state.managers
     .filter((manager) => !manager.isUser && manager.credits > 0)
     .map((manager) => ({ manager, maxValue: aiMaxBid(manager, player) }))
-    .sort((a, b) => b.maxValue - a.maxValue || managerMissingSlots(b.manager) - managerMissingSlots(a.manager));
+    .filter(({ maxValue }) => maxValue >= 1))
+    .sort((a, b) => b.maxValue - a.maxValue);
   const winner = candidates[0];
-  if (!winner) return;
+  if (!winner) {
+    closeAuction();
+    return;
+  }
 
   const secondValue = candidates[1]?.maxValue || Math.round(playerBasePrice(player) * 0.62);
   const minimumWinningBid = state.leaderId === winner.manager.id ? state.currentBid : state.currentBid + 1;
@@ -3136,6 +3176,9 @@ function renderPlayerStats() {
 }
 
 function resetGame() {
+  if (state.mode === "multi" && state.view === "lobby" && state.multiplayer.code && state.multiplayer.playerId) {
+    api(`/api/lobbies/${state.multiplayer.code}/leave`, { playerId: state.multiplayer.playerId }).catch(() => {});
+  }
   stopMultiplayerPolling();
   clearMatchState();
   state.running = false;
@@ -3235,7 +3278,10 @@ $("skipSimBtn").addEventListener("click", () => {
 });
 $("startGameBtn").addEventListener("click", startSinglePlayer);
 $("resetBtn").addEventListener("click", resetGame);
-$("playAgainBtn").addEventListener("click", () => showView("setup"));
+$("playAgainBtn").addEventListener("click", () => {
+  resetGame();
+  showView("setup");
+});
 $("difficultySelect").addEventListener("change", applyDifficultyDefaults);
 [$("creditsInput"), $("auctionPlayersInput"), $("aiPlayersInput")].forEach((input) => {
   input.addEventListener("input", previewSetupSummary);
@@ -3271,6 +3317,16 @@ window.addEventListener("beforeunload", () => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Tab" && document.body.classList.contains("modal-open")) {
+    const dialog = document.querySelector('.site-modal:not(.is-hidden) [role="dialog"]');
+    const controls = [...(dialog?.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]') || [])].filter((element) => element.getClientRects().length);
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (first && (!dialog.contains(document.activeElement) || (event.shiftKey && document.activeElement === first) || (!event.shiftKey && document.activeElement === last))) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    }
+  }
   if (event.key !== "Escape") return;
   if (state.legalModalOpen) closeLegalModal();
   else if (state.profileModalOpen) closeProfileModal();
